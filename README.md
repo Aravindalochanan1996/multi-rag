@@ -1,249 +1,237 @@
 # Career Intelligence Assistant
 
-> **DRAFT NOTICE — remove before submitting.** The factual parts of this README (setup, architecture,
-> numbers) are accurate as of the last run. Sections marked **✍️ REWRITE IN YOUR OWN WORDS** contain a
-> grounded first draft of *what actually happened*, but the assignment explicitly asks for your own
-> reasoning there. Keep the facts you agree with, replace the voice and add your own judgement.
+You upload your resume and a few job postings. Then you can ask questions about how well you fit, see which
+skills you're missing, get likely interview questions, and get suggestions for improving your resume. Every
+answer comes from your own documents and shows where it came from.
 
-Upload a resume and several job postings (as files, pasted text, or a link), then ask questions about
-fit, skill gaps and interview preparation, generate a tailored **interview prep kit** per job, and get **resume improvement suggestions** for each role. Every answer is grounded in your documents and cites the passages it used.
+I picked the career option because it's a problem I actually run into: comparing a resume against several job
+descriptions and figuring out where you fall short.
+<!-- Add a sentence or two of your own here about why this matters to you personally. -->
 
-<!-- ✍️ Add 2–3 sentences in your own words: why Option 4, who this is for. -->
+**More docs**
 
-**Documentation index**
-
-| Doc | What it covers |
+| Doc | What's in it |
 |---|---|
-| [docs/RUNBOOK.md](docs/RUNBOOK.md) | Run, configure, operate, troubleshoot |
-| [docs/FUNCTIONALITY.md](docs/FUNCTIONALITY.md) | How each part works, full API reference, data model |
-| [docs/FEATURES.md](docs/FEATURES.md) | Feature-by-feature detail and what is not built |
-| [docs/TESTING.md](docs/TESTING.md) | Test strategy, coverage numbers, golden eval results |
+| [docs/RUNBOOK.md](docs/RUNBOOK.md) | How to run, configure and fix things |
+| [docs/FUNCTIONALITY.md](docs/FUNCTIONALITY.md) | How each part works, the API, the database |
+| [docs/FEATURES.md](docs/FEATURES.md) | Every feature, how I checked it, and its limits |
+| [docs/TESTING.md](docs/TESTING.md) | Tests, coverage numbers and the evaluation set |
 
 ## Screenshots
 
-<!-- Add screenshots here: upload panel, chat with table + citation chips, Fit & gaps tab.
-     Suggested folder: docs/screenshots/ -->
+<!-- Add screenshots here (sidebar + chat, Fit & gaps, Interview prep, Resume tips, dark mode).
+     A folder like docs/screenshots/ works well. -->
+
+## What it does
+
+- **Add documents** as a file (PDF, DOCX, text), a link to a public job page, or pasted text.
+- **Ask questions** in chat. Answers stream in with clickable citations that show the exact passage used. If the
+  documents can't answer, it says so instead of guessing.
+- **Fit & gaps:** a score for each job, with every requirement marked met, partial or missing and the resume
+  line that proves it.
+- **Interview prep:** technical, gap, behavioural and "questions to ask" for each job, based on my resume.
+- **Resume tips:** rewrites and fixes for a specific job, with warnings when a suggestion might invent something.
+- Dark mode, drag and drop, and a phone layout.
 
 ## Quick setup
 
-Prerequisites: Docker Desktop, [Ollama](https://ollama.com) running on the host (for embeddings, and
-for the default local LLM), and — optionally — a Groq or Anthropic API key.
+You need Docker Desktop and [Ollama](https://ollama.com) running on your machine. Ollama makes the embeddings
+(it's also the default chat model). A Groq or Anthropic key is optional but makes the slow parts much faster.
 
 ```bash
-cp .env.example .env              # then edit: choose an LLM provider, add a key if hosted
-ollama pull nomic-embed-text      # embeddings (required, always local)
+cp .env.example .env              # pick an LLM provider and add a key if you use a hosted one
+ollama pull nomic-embed-text      # embeddings (always needed)
 ollama pull llama3.1              # only if LLM_PROVIDER=ollama
 docker compose up --build
 ```
 
-| Service | URL |
+| What | Where |
 |---|---|
-| Web UI | http://localhost:8090 |
-| API docs (Swagger) | http://localhost:8091/docs |
-| Postgres + pgvector | `localhost:5435` (user/password/db: `app` / `app` / `career`) |
+| App | http://localhost:8090 |
+| API docs | http://localhost:8091/docs |
+| Database | `localhost:5435` (user, password and db are all `app` / `app` / `career`) |
 
-Then upload a resume and a job posting (sample files are in [`samples/`](samples/)) and ask a question.
+Sample files are in [`samples/`](samples/). Running without Docker, the config options and troubleshooting are in
+the [Runbook](docs/RUNBOOK.md).
 
-Run without Docker (hot reload) and all configuration options: see the [Runbook](docs/RUNBOOK.md).
-
-## Architecture overview
+## How it's put together
 
 ```mermaid
 flowchart LR
   subgraph Browser
-    UI[React + Vite + Tailwind<br/>Upload · Chat · Fit & gaps]
+    UI[React + Vite + Tailwind]
   end
   subgraph API[FastAPI]
     DOC[/documents/]
-    CHAT[/chat  SSE/]
-    FIT[/analysis/fit  SSE/]
+    CHAT[/chat  streaming/]
+    AN[/analysis: fit, interview, improve/]
   end
-  PG[(Postgres + pgvector<br/>documents · chunks · analyses)]
+  PG[(Postgres + pgvector)]
   EMB[Ollama<br/>nomic-embed-text]
-  LLM{{LLM provider<br/>Ollama · Groq · Anthropic}}
+  LLM{{LLM: Ollama, Groq or Anthropic}}
 
-  UI -- HTTP / SSE --> API
-  DOC -- parse · chunk · embed --> EMB
+  UI --> API
+  DOC -- parse, chunk, embed --> EMB
   DOC --> PG
-  CHAT -- embed query --> EMB
-  CHAT -- vector search --> PG
-  CHAT -- grounded prompt --> LLM
-  FIT -- full texts --> PG
-  FIT -- judge each requirement --> LLM
+  CHAT -- embed question --> EMB
+  CHAT -- search --> PG
+  CHAT -- prompt --> LLM
+  AN -- full texts --> PG
+  AN -- structured prompt --> LLM
 ```
 
-**Request flows**
+Three flows matter:
 
-1. **Ingest** — `POST /documents`: parse (PDF/DOCX/TXT/MD) → split by section headings → embed each
-   chunk (with the document title prepended) → store chunks + vectors in Postgres.
-2. **Chat** — `POST /chat`: embed the question → retrieve top-4 chunks from resumes *and* top-4 from
-   jobs → refuse if nothing clears the similarity threshold → build a delimited prompt → stream the
-   answer token by token, with `[n]` citations that map to the retrieved chunks.
-3. **Fit analysis** — `POST /analysis/fit/{job_id}`: send the full resume + full job text to the LLM
-   for a per-requirement verdict (met / partial / missing + a quoted evidence line); verify the
-   quotes against the resume; compute the score **in code**; cache the result.
-
-Repository layout:
+1. **Adding a document.** I read the file, split it by its headings (Experience, Requirements and so on), turn
+   each piece into a vector and store it in Postgres.
+2. **Chat.** I embed the question, look up the best matching pieces from the resume and from the jobs, and
+   refuse to answer if nothing matches well enough. Otherwise the model answers using only those pieces and
+   cites them.
+3. **Fit, interview prep and resume tips.** Each sends the whole resume and the whole job to the model and asks
+   for structured JSON. I check the JSON, verify the quotes against the resume, and cache the result.
 
 ```
-backend/app/      FastAPI app: routes/, ingest/, chat.py, analysis.py, llm.py, store.py, retrieval.py
-backend/evals/    golden eval set + runner (python -m evals.run)
-backend/tests/    155 unit/API tests
-frontend/src/     React UI (components/: UploadPanel, Chat, FitView, Markdown)
+backend/app/      the API: routes/, ingest/, chat.py, analysis.py, interview.py, suggestions.py, llm.py
+backend/evals/    the evaluation set and runner (python -m evals.run)
+backend/tests/    155 tests
+frontend/src/     the React app
 docs/             runbook, functionality, features, testing
 samples/          example resume and job postings
 ```
 
-## RAG / LLM approach and decisions
+## Choices I made (RAG and LLM)
 
-> **✍️ REWRITE IN YOUR OWN WORDS.** Each entry below is *considered → chosen → why*, with the real
-> evidence from this build. The assignment is looking for your reasoning; use these as the skeleton.
+For each one I list what I looked at, what I picked and why. A lot of these came out of using the app and
+fixing what broke, which I note where it applies.
 
-### Chunking
-- **Considered:** fixed-size windows with overlap; sentence/recursive splitters; structure-aware splits.
-- **Chosen:** split on section headings (Summary, Experience, Skills, Requirements, Nice to have, …),
-  keep the section name as metadata, and only split an oversized section (>1,200 chars) on
-  bullet/paragraph boundaries.
-- **Why:** resumes and job postings are short and highly structured. A fixed window would mix
-  "Requirements" with "Benefits" and lose the required-vs-preferred distinction that the fit score
-  depends on. The section label also lets the UI show *where* in a document an answer came from.
+**Chunking.** I looked at fixed-size windows and at splitting by structure. I split by headings and kept the
+heading as a label. Resumes and job posts are short and well structured, and the fit score needs to know
+whether something is a "required" or a "nice to have" item. A fixed window would blur that. Pieces over 1,200
+characters get split on bullet or paragraph breaks.
 
-### Embedding model
-- **Considered:** OpenAI `text-embedding-3-small`, Voyage, local `bge`/`nomic`.
-- **Chosen:** `nomic-embed-text` via Ollama (768 dimensions), always local, behind an `Embedder` interface.
-- **Why:** resumes are personal data, so no candidate text is sent to a third party for embedding;
-  the corpus is tiny (tens of chunks), where a small local model is adequate; and it needs no API key
-  to reproduce. **Lesson learned:** embedding the bare chunk was the single biggest retrieval flaw —
-  a "Requirements" list carries no company name. Prepending the document title lifted retrieval hit
-  rate on the golden set from **33% → 100%**.
+**Embedding model.** I looked at OpenAI, Voyage and local models. I use `nomic-embed-text` through Ollama.
+Resumes are personal, so I didn't want them sent to a third party just to be embedded, and there are only a few
+dozen chunks, so a small local model is fine. The biggest retrieval problem I hit was that a chunk like
+"Requirements: Python, SQL" doesn't say which company it belongs to. Adding the document title to the text I
+embed took my test set's retrieval hit rate from **33% to 100%**.
 
-### Vector database
-- **Considered:** Chroma, Qdrant, pgvector.
-- **Chosen:** Postgres + pgvector.
-- **Why:** one datastore for vectors, metadata, session isolation, and cached analyses, with
-  transactions and `ON DELETE CASCADE`; it maps directly onto RDS / Cloud SQL / Aurora for production.
-  At this scale an exact (non-indexed) cosine scan is fast and avoids approximate-index tuning.
+**Vector database.** I looked at Chroma, Qdrant and pgvector, and went with Postgres + pgvector. One database
+holds the vectors, the documents, the cached results and the session separation. It also maps straight onto
+RDS or Cloud SQL later. At this size an exact search is fast, so there's no index to tune.
 
-### LLM
-- **Considered:** local Ollama (`llama3.1`), Anthropic Claude, Groq-hosted open models.
-- **Chosen:** a `make_llm()` factory selected by `LLM_PROVIDER` — `ollama` (default, private),
-  `groq`, or `anthropic`.
-- **Why:** local-first respects privacy but a fit analysis took **~85–170 s** on this machine; a hosted
-  provider returns the same analysis in **~2 s**. Keeping the provider swappable lets the trade-off
-  be a configuration choice instead of a rewrite. Groq's `openai/gpt-oss-120b` is the tested hosted model.
+**LLM.** I looked at local Ollama, Anthropic and Groq. The provider is a setting (`LLM_PROVIDER`), so it's easy
+to switch. Local is private but a fit analysis took about 1.5 to 3 minutes on my machine. Groq did the same
+job in about 2 seconds. I use Groq's `openai/gpt-oss-120b` day to day and keep Ollama as the private option.
 
-### Orchestration framework
-- **Considered:** LangChain / LlamaIndex.
-- **Chosen:** none — plain Python.
-- **Why:** the pipeline is four steps; a framework would add abstraction and hide the very decisions
-  being evaluated (prompting, thresholds, retrieval balance). Fewer dependencies, easier to test.
+**Framework.** I didn't use LangChain or similar. The pipeline is a handful of steps, and I wanted to see and
+test each one (thresholds, prompts, how I balance resume and job results) instead of hiding them.
 
-### Prompt and context management
-- Retrieved chunks are wrapped in `<source id="n" document=… section=…>` tags with a system prompt that
-  says: answer only from sources, cite as `[n]`, treat source text as untrusted data.
-- **Balanced retrieval:** top-4 from resumes *and* top-4 from jobs, merged. A single global top-k let
-  job text crowd out the resume, which broke "how does my experience fit X" questions.
-- **Fit analysis does not use top-k at all:** it sends the *whole* resume and *whole* job (both are
-  small) so no requirement can be missed by retrieval — this was the fix for the early chat answer that
-  never saw a job's "Requirements" section.
+**Prompts and context.** Retrieved pieces go into numbered `<source>` tags, and the prompt says to answer only
+from them, cite as `[n]`, and treat the text as data. I take the top 4 from the resumes and the top 4 from the
+jobs separately. With one combined top-k, job text crowded out the resume and questions like "how does my
+experience fit?" failed. For fit, interview and resume tips I skip retrieval and send both full documents,
+because they're small and retrieval could miss a requirement.
 
-### Guardrails
-- **Refuse without evidence:** if the best retrieved chunk is below the similarity threshold (0.5) the
-  LLM is never called. Supporting chunks are allowed down to 0.38 once the best match clears it.
-- **Prompt-injection defence:** uploaded text is delimited, forged `<source>` tags are stripped, and the
-  prompt marks it as data. Verified by a golden-set posting that says "ignore all previous instructions".
-- **Evidence verification:** in fit analysis, a "met" verdict whose quoted evidence is not found in the
-  resume is downgraded to "missing" and flagged. Scores are computed in code, never by the model.
-- **Input limits:** allowed extensions, 5 MB size cap, per-session isolation by `X-Session-ID`.
+**Guardrails.**
+- If the best match is below a similarity threshold (0.5), the model isn't called at all.
+- Uploaded text is wrapped in tags and treated as untrusted. One of my test job posts says "ignore all previous
+  instructions", and the assistant ignores it.
+- In fit analysis, a "met" claim whose quoted evidence isn't on the resume is downgraded to missing.
+- The score itself is calculated in code, not by the model.
+- File type and size limits, and each browser session only sees its own documents.
 
-### Quality controls
-- 155 automated tests (87% line coverage) plus a **golden eval set** (16 questions + 3 fit cases) that
-  scores retrieval hit rate, answer accuracy, citation validity, refusal accuracy, injection resistance
-  and fit correctness. Latest run: all metrics 1.0. Details and honest caveats in
-  [docs/TESTING.md](docs/TESTING.md).
+**Quality.** 155 tests (87% line coverage) and a small evaluation set of 16 questions and 3 fit cases that I
+run against the real pipeline. The latest run scored 100% on retrieval, answers, citations, refusals, injection
+resistance and fit. The set is small and I tuned things while fixing its failures, so I read that as "no known
+regressions", not "proven correct". Details and the history of what broke are in
+[docs/TESTING.md](docs/TESTING.md).
 
-### Observability
-- Structured JSON logs with a per-request ID (`X-Request-ID`), latency, retrieval stats (candidates,
-  relevant, top score), chunks used, and ingest sizes. Provider health is exposed at `/health`.
-- Not done: tracing, metrics endpoint, token/cost accounting (see "What I'd do differently").
+**Observability.** JSON logs with a request ID, timings, how many chunks were retrieved and the top score, and a
+`/health` endpoint. I haven't added tracing, metrics or token and cost tracking.
 
-## Key technical decisions
+## What I'd point out as decisions or lessons
 
-> **✍️ REWRITE IN YOUR OWN WORDS.** Candidate points, all backed by something that happened in this build:
-
-1. **Score in code, judgement in the model.** The LLM labels each requirement; arithmetic and weighting
-   (required ×2, preferred ×1, partial = ½) live in `analysis.py`. Explainable, testable, can't drift.
-2. **Streaming everywhere.** A first, blocking fit-analysis endpoint returned a proxy 500 after ~111 s.
-   Switching to server-sent events (progress + result) fixed it and gave the UI a live progress counter.
-3. **Cache analyses** per (job, resume) in Postgres: first run costs a model call, repeats are instant.
-4. **Provider interface** so privacy vs speed is a config choice.
-5. **Section-aware chunking + title-in-embedding** over generic windows.
-6. **Session isolation without auth** (a per-page-load, in-memory session ID) to keep scope honest; real auth is
-   a production step. A refresh intentionally clears the workspace and the server-side data (privacy over convenience).
+1. **The document title goes into the embedding.** Small change, biggest improvement: 33% to 100% retrieval on
+   my test set.
+2. **The score is computed in code.** The model decides whether each requirement is met, partial or missing and
+   quotes the proof. The number comes from a fixed formula (required items count double, partial counts half).
+   That makes it explainable and it can't be invented.
+3. **Resume tips are checked, not trusted.** A tool that rewrites your resume is tempting to let make things
+   up. I check each suggestion in code: the original line has to exist, new numbers have to be placeholders
+   like `[X%]`, skills from the job that aren't on the resume get flagged, and so do invented results like
+   "zero downtime". My first version only checked numbers and missed "zero downtime" and "sub-second latency",
+   which I only noticed by reading real output. The checks are heuristics and still can't catch everything.
+4. **Local or hosted LLM is a trade-off, not a rule.** Local keeps documents on my machine but is slow. Hosted
+   is fast but the resume and job text go to that provider. Embeddings stay local either way.
+5. **Slow things stream.** My first fit-analysis endpoint waited for the whole answer and a proxy cut it off
+   around 111 seconds. Streaming progress events fixed that and let the UI show a live counter.
 
 ## Engineering standards
 
-Followed: type hints; ruff lint clean; small focused modules; dependency injection for every external
-service (so tests use fakes and never need Ollama, Postgres or an API key); Pydantic validation of all
-model output with one retry; containerised (Docker Compose) with healthchecks; CI workflow running lint,
-tests and a frontend build; `.env` never committed; unit tests alongside every module.
+What I followed: type hints, a lint-clean codebase (ruff), small modules, every outside service (Ollama,
+Postgres, the LLM) passed in so tests can fake it and run offline, model output validated with Pydantic and one
+retry, Docker Compose with health checks, CI that runs lint, tests and the frontend build, and secrets kept out
+of git.
 
-Skipped on purpose: auth and multi-tenancy; database migrations (schema is created idempotently on
-startup); automated frontend tests; rate limiting; OCR for scanned PDFs; load testing. See
-[Known limitations](#known-limitations).
+What I skipped on purpose: login and multi-user support, database migrations (the schema is created on
+startup), frontend tests, rate limiting, OCR for scanned PDFs and load testing.
 
 ## How I used AI tools
 
-> **✍️ REWRITE IN YOUR OWN WORDS.** Your do's and don'ts matter more than this list. Facts you can draw on:
+I used Claude Code to write most of the code. My part was giving instructions on how the modules, components
+and utilities should be laid out, then reading the code once it was written to find anything that needed
+fixing, and testing it by running the app. I also keep the project rules in `CLAUDE.md` (no LangChain, tests
+and lint must pass, uploaded text is data, answers must cite or refuse).
 
-- Used Claude Code for scaffolding, implementation and tests; `CLAUDE.md` records the conventions
-  (no LangChain, ruff + pytest before commit, uploaded text is data, cite or refuse).
-- **Corrections I had to make to AI output** (good concrete examples for this section):
-  - Wrong expected values in AI-written tests (twice) — the code was right, the assertion was sloppy.
-  - A schema bug (`min_length=2`) rejected the legitimate requirement "R"; found by the eval, not by review.
-  - Generated Python containing literal newlines inside f-strings several times when edited through shell heredocs.
-  - A first design that blocked for minutes in one HTTP request and failed behind a proxy.
-  - A hosted model name that no longer existed; found by listing the models the key could access.
-- Rules: review every diff; run tests and the eval after each change; do not let the AI write
-  design rationale or this README's reasoning sections.
+It needed checking. Real examples from this project:
+- It got test expectations wrong more than once (the code was right, the test was sloppy).
+- A rule that required requirement names to be at least 2 characters rejected a real one, "R". The evaluation
+  run caught it, not a code review.
+- My first fit-analysis design blocked for minutes and failed behind a proxy.
+- A hosted model name it picked no longer existed. I only found out by listing the models my key could use.
+- The resume-tips checks missed invented results that had no numbers in them (see above).
 
-## Productionizing and scaling on a hyperscaler (AWS example; GCP/Azure map 1:1)
+I also used AI to help draft this README from my notes and answers, then edited it. The decisions and the
+project's mistakes are real and came from building this.
+<!-- Add your own do's and don'ts for AI coding tools here: they're graded, and yours matter more than mine. -->
 
-| Concern | Today | Production |
+## Putting it on a cloud (AWS example, GCP and Azure map the same way)
+
+| Area | Today | In production |
 |---|---|---|
-| Compute | Docker Compose | API on ECS Fargate / Cloud Run behind an ALB; frontend as static files on S3 + CloudFront |
-| Database | Single Postgres container | Aurora / RDS PostgreSQL with pgvector, Multi-AZ, automated backups; add an HNSW index when chunks reach 10⁵+ |
-| Ingestion & analysis | Inline in the request | Upload to S3 → SQS → worker autoscaled on queue depth; status polled/streamed to the UI; this also removes proxy-timeout risk |
-| LLM | Local Ollama or Groq/Anthropic key | Bedrock (Claude) or a provider with an enterprise data agreement; per-tenant quotas and a circuit breaker; retry/backoff already present for 429 |
-| Embeddings | Local Ollama | Bedrock Titan / hosted embedding endpoint, or a GPU-backed inference service |
-| Auth & tenancy | Browser session ID | Cognito / OIDC; `tenant_id` on every table; row-level security; per-user quotas |
-| Secrets | `.env` | Secrets Manager / Parameter Store, injected at runtime; key rotation |
-| Observability | JSON logs | OpenTelemetry traces + metrics → CloudWatch/Grafana; Langfuse or similar for prompt/response review, token and cost dashboards; alarms on error rate, p95 latency, 429s |
-| Security | Basic limits | WAF + rate limiting; virus scan on uploads; PII encryption at rest (KMS) and retention/deletion policy; audit log |
-| Delivery | CI lint/test/build | CI/CD with image scanning, IaC (Terraform), blue/green deploys, DB migrations (Alembic), eval run as a release gate |
-| Scale | One process | Stateless API → horizontal autoscale; read replicas; cache analyses (already) and embeddings by content hash |
+| Compute | Docker Compose | API on ECS Fargate or Cloud Run behind a load balancer; frontend as static files on S3 + CloudFront |
+| Database | One Postgres container | Aurora or RDS Postgres with pgvector, Multi-AZ, backups; add an HNSW index once there are 100k+ chunks |
+| Slow jobs | Run inside the request | Upload to S3, queue with SQS, workers scale on queue depth, the UI polls or streams status |
+| LLM | Local Ollama or a Groq/Anthropic key | Bedrock or a provider with an enterprise data agreement; per-user quotas; a circuit breaker (429 backoff exists already) |
+| Embeddings | Local Ollama | Bedrock Titan or a hosted embedding endpoint |
+| Auth | A random per-page session ID | Cognito or OIDC login, a tenant ID on every table, row-level security |
+| Secrets | `.env` file | Secrets Manager, rotated keys |
+| Monitoring | JSON logs | OpenTelemetry traces and metrics, prompt and cost tracking (Langfuse or similar), alerts on errors, latency and 429s |
+| Security | Basic limits | WAF and rate limiting, virus scanning of uploads, encryption at rest, a retention and deletion policy |
+| Delivery | CI for lint, tests, build | Image scanning, Terraform, blue/green deploys, Alembic migrations, the eval run as a release gate |
+| Scaling | One process | Stateless API that scales horizontally; cache embeddings by content hash |
 
-## What I'd do differently with more time
+## What I'd do with more time
 
-> **✍️ REWRITE IN YOUR OWN WORDS.** Candidates:
-
-- Hybrid retrieval (Postgres full-text + vector with rank fusion) and a reranker.
-- Background pre-computation of the fit analysis right after a job is uploaded.
-- Verify (or remove) the AI-written talking points in the interview kit; add interview prep, resume tips and URL import to the golden eval; a semantic (not keyword/regex) check for invented claims in resume rewrites.
-- A much larger, more adversarial eval set and an LLM-judge cross-check of the keyword scoring.
-- Frontend tests (Vitest + Playwright), OpenTelemetry, and real migrations.
-- Fetch URLs through an egress proxy (or pin the validated IP) and support JavaScript-rendered job boards.
+- **Hybrid search and a reranker.** Combine keyword (Postgres full-text) and vector search, then rerank.
+- **Auth, a job queue and a real cloud deployment** instead of running everything in the request.
+- **Frontend tests and monitoring:** automated UI tests (Vitest, Playwright), tracing, metrics, and token and cost
+  tracking.
+- Smaller things I'd also like: add interview prep, resume tips and URL import to the evaluation set, and
+  check or drop the AI-written talking points in the interview kit.
 
 ## Known limitations
 
-- Resume-tips guardrails are heuristic (regex and word checks): they flag invented numbers, skills and results but cannot catch every embellishment. Always read rewrites before using them.
-- Many job boards (LinkedIn, Indeed, Workday) block bots or need JavaScript, so URL import can fail there; Paste always works.
-- Scanned (image-only) PDFs are rejected; no OCR.
-- Documents ingested before the "title in embedding" change keep old embeddings — re-upload them.
-- The golden eval is small (16 + 3) and was tuned against its own failures; 100% means "no known
-  regressions", not "correct in general". Scoring is keyword-based, not semantic.
-- No authentication. Each page load gets a fresh in-memory session ID, so **a refresh or new tab starts an empty workspace**; the server deletes that session's data on refresh/close (best effort) and purges anything older than `SESSION_TTL_HOURS` (24) at startup.
-- The latest uploaded resume is the one used for fit analysis.
-- Local-model latency is high (minutes for a fit analysis); hosted providers send resume/job text to a third party.
-- Free-tier hosted models rate-limit (Groq: 8,000 tokens/min observed); calls back off and retry up to 4 times.
-- Frontend has no automated tests.
+- Scanned (image-only) PDFs can't be read. There's no OCR.
+- Job links: LinkedIn, Indeed and Glassdoor block automated access and need a login, so the app says so and
+  suggests Paste. Other sites that need JavaScript can fail the same way.
+- Everything is wiped when you refresh. Documents live in a per-page session on purpose (I'd rather lose data
+  than keep resumes around). Documents older than 24 hours are also deleted when the API starts.
+- The evaluation set is small and I tuned it while fixing failures, and its scoring is keyword-based.
+- Resume-tip checks are regex and word based, so a made-up detail with no number, skill name or result word can
+  slip through. Read every rewrite before using it.
+- Documents uploaded before I added the title to the embeddings keep the old vectors; re-upload them.
+- There's no login. The latest uploaded resume is the one analysed.
+- Local models are slow (minutes), and hosted ones send your text to the provider. Free hosted tiers rate-limit
+  (Groq's was 8,000 tokens a minute).
+- The frontend has no automated tests.
