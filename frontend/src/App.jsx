@@ -4,12 +4,14 @@ import UploadPanel from "./components/UploadPanel.jsx";
 import Chat from "./components/Chat.jsx";
 import FitView from "./components/FitView.jsx";
 import InterviewView from "./components/InterviewView.jsx";
+import ResumeTipsView from "./components/ResumeTipsView.jsx";
 import { Alert, Button, Icon } from "./components/ui.jsx";
 
 const TABS = [
   ["chat", "Ask", "chat"],
   ["fit", "Fit & gaps", "chart"],
   ["interview", "Interview prep", "users"],
+  ["tips", "Resume tips", "lightbulb"],
 ];
 
 /** Theme: follows the OS until the user picks one with the toggle. Only this preference is
@@ -99,14 +101,14 @@ export default function App() {
           <nav className="flex gap-1 rounded-xl bg-surface-2 p-1" role="tablist" aria-label="Sections">
             {TABS.map(([id, label, icon]) => (
               <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}
-                className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-sm font-medium transition ${tab === id ? "bg-surface text-text shadow-sm" : "text-muted hover:text-text"}`}>
+                className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition ${tab === id ? "bg-surface text-text shadow-sm" : "text-muted hover:text-text"}`}>
                 <Icon name={icon} className="h-4 w-4" />
-                <span className="hidden sm:inline">{label}</span>
+                <span className="hidden lg:inline">{label}</span>
               </button>
             ))}
           </nav>
           <div className="ml-auto flex items-center gap-2">
-            <span className={`hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium sm:inline-flex ${ready ? "bg-ok-soft text-ok" : "bg-warn-soft text-warn"}`}>
+            <span className={`hidden items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium xl:inline-flex ${ready ? "bg-ok-soft text-ok" : "bg-warn-soft text-warn"}`}>
               <span className={`h-1.5 w-1.5 rounded-full ${ready ? "bg-ok" : "bg-warn"}`} />
               {ready ? `Ready · ${jobs} job${jobs > 1 ? "s" : ""}` : "Add a resume and a job"}
             </span>
@@ -118,6 +120,7 @@ export default function App() {
           <div className={tab === "chat" ? "h-full" : "hidden"}><Chat hasDocs={ready} resumes={resumes} jobs={jobs} /></div>
           <div className={tab === "fit" ? "h-full overflow-y-auto" : "hidden"}><FitView docs={docs} /></div>
           <div className={tab === "interview" ? "h-full overflow-y-auto" : "hidden"}><InterviewView docs={docs} /></div>
+          <div className={tab === "tips" ? "h-full overflow-y-auto" : "hidden"}><ResumeTipsView docs={docs} /></div>
         </main>
       </div>
     </div>

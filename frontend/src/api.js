@@ -71,6 +71,19 @@ export async function generateInterview(jobId, onEvent, refresh = false) {
   await readEvents(r, onEvent);
 }
 
+export async function cachedSuggestions(jobId) {
+  const r = await check(await fetch(`/api/analysis/improve/${jobId}`, { headers: headers() }));
+  return r.status === 204 ? null : r.json();
+}
+
+/** Streams resume-suggestion events ({type: progress|result|error}) to onEvent. */
+export async function generateSuggestions(jobId, onEvent, refresh = false) {
+  const r = await check(
+    await fetch(`/api/analysis/improve/${jobId}?refresh=${refresh}`, { method: "POST", headers: headers() }),
+  );
+  await readEvents(r, onEvent);
+}
+
 export async function cachedFit(jobId) {
   const r = await check(await fetch(`/api/analysis/fit/${jobId}`, { headers: headers() }));
   return r.status === 204 ? null : r.json();

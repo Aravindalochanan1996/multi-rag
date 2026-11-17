@@ -140,6 +140,19 @@ Body: `{"url": "https://…", "doc_type": "job" | "resume"}` (default `job`). Fe
 (see §10). `201` same payload as upload · `422` with a user-presentable reason (blocked address, bad scheme,
 unreachable, blocked by site, JS-only/too little text, too large, timeout) · `502` embedding unavailable.
 
+### `GET /analysis/improve/{job_id}` and `POST /analysis/improve/{job_id}?refresh=false` — resume suggestions
+Same behaviour as the interview endpoints (204/200 for GET; `404` job, `409` no resume, SSE `progress`/`result`/`error` for POST,
+cached per job + resume). `result.result` is:
+
+```json
+{ "doc_id": "…", "title": "…", "summary": "…",
+  "suggestions": [{
+    "category": "rewrite|quantify|keywords|structure|gap|advice", "priority": "high|medium|low",
+    "title": "…", "issue": "…", "original": "…", "original_verified": true, "suggestion": "…",
+    "needs_input": ["…"],
+    "warnings": {"original_missing": false, "new_numbers": [], "added_terms": [], "unsupported_claims": []} }] }
+```
+
 ### `GET /analysis/interview/{job_id}` — cached interview kit
 `200` kit object, or `204` if none stored (or no resume / unknown job).
 
@@ -165,6 +178,7 @@ Interactive docs: `/docs` (Swagger UI).
 | `chunks` | `id bigserial PK`, `doc_id → documents ON DELETE CASCADE`, `idx`, `section`, `content`, `embedding vector(768)` | index on `doc_id`; exact cosine scan (`<=>`) |
 | `analyses` | `(job_id, resume_id)` PK, both → `documents ON DELETE CASCADE`, `result jsonb`, `created_at` | fit-analysis cache; upsert on re-run |
 | `interview_kits` | same shape as `analyses` | interview-kit cache; upsert on regenerate |
+| `resume_suggestions` | same shape as `analyses` | resume-suggestion cache; upsert on regenerate |
 
 The schema is created idempotently at API start (`db.init_schema`). Changing `EMBED_DIM` requires recreating `chunks`.
 
@@ -209,3 +223,8 @@ one `_ingest` function.
 call, reports progress, validates against a Pydantic model and retries once. Fit analysis and interview prep both use it.
 After validation, `build_kit` caps list sizes and verifies each `resume_evidence` quote against the resume
 (≥70% word overlap), dropping unsupported quotes and flagging `evidence_verified: false`.
+
+**Resume suggestions (`suggestions.py`)** also reuse `stream_structured`. After validation, `build_result` sorts by priority,
+caps at 8, and runs the truthfulness checks described in FEATURES §16 (`new_numbers`, `added_terms`, `unsupported_claims`,
+original-line verification) on the *rewrite* and *quantify* categories, whose text is proposed resume wording. The three
+per-job endpoints (fit, interview, improve) share two route helpers, `_cached` and `_stream`, in `routes/analysis.py`.

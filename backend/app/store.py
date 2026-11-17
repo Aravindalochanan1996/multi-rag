@@ -34,6 +34,10 @@ class DocumentStore(Protocol):
 
     def save_interview(self, job_id: str, resume_id: str, result: dict) -> None: ...
 
+    def get_suggestions(self, job_id: str, resume_id: str) -> dict | None: ...
+
+    def save_suggestions(self, job_id: str, resume_id: str, result: dict) -> None: ...
+
     def delete(self, session_id: str, doc_id: str) -> bool: ...
 
     def delete_session(self, session_id: str) -> int: ...
@@ -99,6 +103,12 @@ class PgDocumentStore:
 
     def save_interview(self, job_id: str, resume_id: str, result: dict) -> None:
         self._save_result("interview_kits", job_id, resume_id, result)
+
+    def get_suggestions(self, job_id: str, resume_id: str) -> dict | None:
+        return self._get_result("resume_suggestions", job_id, resume_id)
+
+    def save_suggestions(self, job_id: str, resume_id: str, result: dict) -> None:
+        self._save_result("resume_suggestions", job_id, resume_id, result)
 
     # `table` is always one of our two fixed names, never user input.
     def _get_result(self, table: str, job_id: str, resume_id: str) -> dict | None:

@@ -7,7 +7,7 @@ and manual/live verification. Numbers below were measured on the last run.
 
 ```bash
 cd backend
-pytest -q                                   # 126 tests, ~2 s
+pytest -q                                   # 155 tests, ~2 s
 pytest --cov=app --cov-report=term-missing  # needs: pip install pytest-cov
 ruff check .                                # lint
 ```
@@ -15,7 +15,7 @@ ruff check .                                # lint
 **Design principle:** every external dependency (Ollama, Postgres, LLM APIs) is injected, so the suite runs
 offline with fakes. No test needs a network, a key, or a database.
 
-### Tests by area (126 total)
+### Tests by area (155 total)
 
 | File | Tests | What it proves |
 |---|---|---|
@@ -25,16 +25,18 @@ offline with fakes. No test needs a network, a key, or a database.
 | `test_chunking.py` | 7 | Heading detection; section split and naming; chunk indices; oversized sections split on bullets within limit; giant single block hard-split; empty input |
 | `test_documents_api.py` | 13 | Upload success; bad `doc_type`; unsupported file; missing session header; embedding failure → 502; list and delete-missing; clear-session wipes by query-param ID (no header); clear-session validates the ID; **URL import**: stores sections and page title, can target a resume, fetch problems → 422, body/session validation, embedding failure → 502 |
 | `test_fetch.py` | 17 | **SSRF and extraction**: rejects bad schemes, credentials and non-standard ports; blocks loopback, 10/8, 192.168/16, 172.16/12, 169.254.169.254, 0.0.0.0, `::1`, `fd00::/8`; blocks a host if *any* resolved address is private; DNS failure message; extracts title and structured text; redirect to a private address is blocked; safe redirects followed, loops capped; 403/429/404/500 → friendly messages; non-HTML types rejected; oversized pages rejected; JavaScript-only pages suggest Paste; timeouts; plain-text pages accepted; **job boards** (LinkedIn incl. country subdomains, Indeed, Glassdoor) get a clear "copy the description and Paste" message with no network request, lookalike domains are not blocked, a redirect to a job board is caught, and LinkedIn's non-standard 999 status counts as a bot block |
+| `test_suggestions.py` | 29 | **Resume tips guardrails**: invented numbers flagged, placeholders and resume numbers allowed, `40%` vs `40`; job skills missing from the resume flagged (plural/singular, generic words ignored, placeholders ignored); digit-free invented results ("zero downtime", "sub-second", "99.9%") flagged, results near a placeholder allowed, a far-away placeholder does not excuse one; fabricated "original" line dropped and flagged; gap/advice categories not checked; priority sort and 8-item cap; category/priority/needs_input coercion; empty output rejected; retry once then fail; progress events; API stream, cache, refresh, GET 204 then 200, 404/409/error |
 | `test_interview.py` | 12 | Kit sections and shape; evidence quotes verified; fabricated evidence dropped and flagged; absent evidence not treated as fabrication; list caps; retry once then fail; empty kit rejected by the schema; progress events; blank to-ask entries stripped; API: stream + cache, refresh bypass, GET 204→200, 404/409/error events |
 | `test_parsing.py` | 5 | TXT normalisation; DOCX extraction; unsupported extension; corrupt PDF; empty file |
 | `test_eval_metrics.py` | 6 | The eval's own scoring helpers (retrieval hit, keyword groups/exclusions, citations, refusal detection, fit checks, rate) |
 | `test_health.py` | 1 | `/health` and request-ID header |
 
-### Line coverage (`pytest --cov=app`): **86% overall** (867 statements, 124 missed)
+### Line coverage (`pytest --cov=app`): **87% overall** (963 statements, 126 missed)
 
 | Module | Cover | Why / what is uncovered |
 |---|---|---|
 | `chat.py`, `config.py`, `logging_setup.py`, `routes/chat.py` | 100% | — |
+| `suggestions.py` | 99% | one defensive branch |
 | `interview.py` | 98% | one defensive branch |
 | `routes/analysis.py` | 96% | provider factory default and one guard branch |
 | `analysis.py` | 96% | rarely reached error paths |
@@ -141,6 +143,7 @@ Fit scores observed: ML Engineer 40, Backend Engineer 100, Data Analyst 11.
 | Docker | `docker compose up --build`; `/api/health`, chat and fit through nginx |
 | URL import SSRF rules | live API: loopback, localhost, 169.254.169.254, 10.x, `::1`, file://, ftp://, credentials in URL and port 8443 all rejected with 422 |
 | URL import happy path | real fetch + extract + embed + store of three public pages; one imported through the UI (Link → Import job) |
+| Resume suggestions | live runs on the sample resume and ML job (8 suggestions, ~5 s on Groq); the model invented "<200 ms latency and 99.9% uptime" in one run and the checks flagged both; the UI shows before/after blocks, Fill-in chips and warnings |
 | Interview kit | live run on the sample resume and ML job: 5/4/4/4 items, every quote verified, 6 s on Groq; UI shows four sections and the copy button |
 | Markdown rendering | DOM: 1 table, 3 rows, no raw `|---`/`**`, chips present |
 | Refresh clears workspace | uploaded a pasted job, confirmed 1 DB row; reloaded; sidebar empty and DB row count 0, `session cleared` logged |

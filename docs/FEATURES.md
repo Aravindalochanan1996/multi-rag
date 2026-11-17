@@ -20,7 +20,7 @@ Status legend: ✅ built and verified · 🟡 partial · ⛔ not built.
 | 13 | Observability (JSON logs, request IDs, health) | 🟡 |
 | 14 | Golden evaluation suite | ✅ |
 | 15 | Interview preparation kit | ✅ |
-| 16 | Resume improvement suggestions | ⛔ |
+| 16 | Resume improvement suggestions | ✅ |
 | 17 | Job-posting URL import | ✅ |
 | 18 | Voice / OCR / multi-user auth | ⛔ |
 | 19 | Modern UI: dark mode, onboarding, drag-and-drop, responsive | ✅ |
@@ -168,8 +168,31 @@ Status legend: ✅ built and verified · 🟡 partial · ⛔ not built.
   DNS is resolved separately from the connection, so a DNS-rebinding race is theoretical; production should fetch
   through an egress proxy or pin the validated IP. Not a crawler: one page per import.
 
-## 16, 18. Not built
-- **Resume improvement suggestions:** could reuse the gap matrix (rewrite suggestions for missing/partial items) with a rule that it never invents experience.
+## 16. Resume improvement suggestions
+- **What:** a **Resume tips** tab gives up to 8 prioritised suggestions per job, tailored to your resume: *rewrites* of
+  existing lines (shown as "On your resume now" vs "Suggested", with Copy), *add numbers* prompts, *keyword* wording the job
+  uses, *structure* fixes, and honest advice for each *skill gap*. A one-line summary sits on top; category filter chips and
+  "Copy all" are included.
+- **Truthfulness (the hard part):** an "improve my resume" tool is tempting to let invent achievements, so the output is
+  checked in code and anything suspicious is flagged, never silently kept:
+  - the "original" line a rewrite replaces must really be on your resume (else it is dropped and flagged);
+  - new **numbers** are not allowed unless bracketed placeholders like `[X%]`, which are listed under "Fill in before using";
+  - skill **terms** from the job posting that your resume does not show are flagged ("Mentions terms from the job that your
+    resume does not show: Kubernetes");
+  - invented **results** ("zero downtime", "sub-second latency", "99.9% uptime") are flagged even when they contain no digits
+    (a result near a placeholder is allowed);
+  - for skill gaps the prompt requires honest framing, and the UI adds "Only add a skill to your resume if you genuinely have it."
+- **How:** one JSON-mode LLM call over the full resume and job (shared stream-validate-retry runner), checks in
+  `suggestions.py`, cached per (job, resume) in `resume_suggestions`.
+- **Verified by:** 29 tests (each check, ranking and the 8-item cap, category/priority coercion, retry/failure, API streaming,
+  cache, refresh, 404/409/error) plus live runs. A live run showed why the checks exist: the model once wrote "achieving
+  <200 ms average latency and 99.9% uptime" for a bullet that stated neither, and both were flagged. A first version missed
+  digit-free inventions like "zero downtime", which led to the result check.
+- **Limits:** the checks are heuristics (regex/word based) and **cannot catch every embellishment**; a plausible-sounding
+  invented detail with no number, no new skill name and no result word can slip through. Always read a rewrite before using it.
+  Not in the golden eval yet. Suggestions are per job; there is no general, job-independent resume review.
+
+## 18. Not built
 - **Voice, OCR, multi-user accounts:** out of scope for this submission.
 
 
