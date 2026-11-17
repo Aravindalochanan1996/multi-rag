@@ -23,6 +23,7 @@ Status legend: ✅ built and verified · 🟡 partial · ⛔ not built.
 | 16 | Resume improvement suggestions | ⛔ |
 | 17 | Job-posting URL import | ✅ |
 | 18 | Voice / OCR / multi-user auth | ⛔ |
+| 19 | Modern UI: dark mode, onboarding, drag-and-drop, responsive | ✅ |
 
 ---
 
@@ -155,15 +156,38 @@ Status legend: ✅ built and verified · 🟡 partial · ⛔ not built.
   resolved and rejected if **any** address is private, loopback, link-local (incl. the 169.254.169.254 cloud
   metadata address), multicast or reserved; redirects are followed manually (max 3) and every hop is re-validated;
   10 s timeout, 2 MB cap, HTML/plain-text only.
-- **Friendly failures:** blocked sites (401/403/429), JavaScript-only pages (too little text), timeouts,
-  oversized pages and DNS failures each return a clear message, usually suggesting Paste.
+- **Friendly failures:** blocked sites (401/403/429/451 and LinkedIn's non-standard 999), JavaScript-only pages
+  (too little text), timeouts, oversized pages and DNS failures each return a clear message, usually suggesting Paste.
+  **LinkedIn, Indeed and Glassdoor are recognised up front**: they forbid automated access and sit behind a login, so
+  the app says so immediately ("copy the description and use Paste") instead of making a doomed request. In the UI the
+  error carries a one-click **Paste the description instead** button.
 - **Verified by:** 14 fetch tests, several parametrized over many inputs (scheme/credential/port rules, 8 private-IP classes, mixed-address hosts,
   redirect-to-private blocked, redirect loops, HTTP errors, content types, size cap, JS-only pages, timeout) and
   5 API tests; live: nine private/invalid URLs blocked, three real public pages imported, one imported through the UI.
-- **Limits:** many job boards (LinkedIn, Indeed, Workday) need JavaScript or a login or block bots — use Paste there.
+- **Limits:** job boards (LinkedIn, Indeed, Glassdoor, Workday) need a login or JavaScript or block bots — use Paste there. Search-result pages list many jobs and are not single postings.
   DNS is resolved separately from the connection, so a DNS-rebinding race is theoretical; production should fetch
   through an egress proxy or pin the validated IP. Not a crawler: one page per import.
 
 ## 16, 18. Not built
 - **Resume improvement suggestions:** could reuse the gap matrix (rewrite suggestions for missing/partial items) with a rule that it never invents experience.
 - **Voice, OCR, multi-user accounts:** out of scope for this submission.
+
+
+## 19. Interface and usability
+- **Modern, themeable UI:** a small design system (colour tokens, shared icons and components) gives a consistent look
+  with automatic **dark mode** that follows the OS, plus a header toggle that overrides it. Colours are variables, so
+  re-theming is a one-file change.
+- **Guided onboarding:** the sidebar shows numbered steps that turn green as you complete them; the empty chat explains
+  the three steps; a status pill in the header says "Add a resume and a job" or "Ready · N jobs".
+- **Upload experience:** drag-and-drop zones, multiple job files at once, a File / Link / Paste switcher, and actionable
+  errors (dismissible, scrolled into view, with a one-click "Paste the description instead" after a failed link).
+- **Chat:** avatars, typing indicator, **Stop generating**, Enter-to-send with Shift+Enter for new lines, an auto-growing
+  composer, per-message Copy, "New chat", suggestion cards, clickable citation chips with a source panel (match bar).
+- **Fit & gaps:** animated score rings, a "How the jobs compare" leaderboard with a Best match badge, **Analyse all**,
+  filter chips (All / Missing / Partial / Met) and skeleton loading with a progress bar.
+- **Interview prep:** section pills with counts and expandable question cards.
+- **Workspace control:** a **Clear workspace** button and a privacy note ("documents stay in this session only").
+- **Responsive and accessible:** the sidebar becomes a slide-in drawer on phones; labelled controls, focus rings,
+  `aria-selected` tabs, and reduced-motion support.
+- **Verified by:** manual browser checks of every tab in light and dark mode and at phone width (screenshots and DOM checks).
+  Limits: no automated frontend tests; the drawer slide animation could not be visually confirmed in the test pane.

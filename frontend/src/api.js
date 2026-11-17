@@ -23,6 +23,11 @@ async function check(r) {
   throw new Error(detail);
 }
 
+/** Delete everything uploaded in this session (used by the "Clear workspace" button). */
+export async function clearWorkspace() {
+  await check(await fetch(`/api/documents/clear?session_id=${SESSION_ID}`, { method: "POST" }));
+}
+
 export async function listDocuments() {
   const r = await check(await fetch("/api/documents", { headers: headers() }));
   return r.json();

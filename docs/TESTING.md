@@ -7,7 +7,7 @@ and manual/live verification. Numbers below were measured on the last run.
 
 ```bash
 cd backend
-pytest -q                                   # 117 tests, ~2 s
+pytest -q                                   # 126 tests, ~2 s
 pytest --cov=app --cov-report=term-missing  # needs: pip install pytest-cov
 ruff check .                                # lint
 ```
@@ -15,7 +15,7 @@ ruff check .                                # lint
 **Design principle:** every external dependency (Ollama, Postgres, LLM APIs) is injected, so the suite runs
 offline with fakes. No test needs a network, a key, or a database.
 
-### Tests by area (117 total)
+### Tests by area (126 total)
 
 | File | Tests | What it proves |
 |---|---|---|
@@ -24,7 +24,7 @@ offline with fakes. No test needs a network, a key, or a database.
 | `test_llm_providers.py` | 12 | Anthropic: streaming, model/system params, JSON-mode instruction, SDK error mapping, missing key; Groq: OpenAI-style SSE parsing, JSON mode flag, auth header, 401 mapping, missing key, 429 retry then success, give-up after max retries; provider factory; fenced-JSON tolerance |
 | `test_chunking.py` | 7 | Heading detection; section split and naming; chunk indices; oversized sections split on bullets within limit; giant single block hard-split; empty input |
 | `test_documents_api.py` | 13 | Upload success; bad `doc_type`; unsupported file; missing session header; embedding failure → 502; list and delete-missing; clear-session wipes by query-param ID (no header); clear-session validates the ID; **URL import**: stores sections and page title, can target a resume, fetch problems → 422, body/session validation, embedding failure → 502 |
-| `test_fetch.py` | 14 | **SSRF and extraction**: rejects bad schemes, credentials and non-standard ports; blocks loopback, 10/8, 192.168/16, 172.16/12, 169.254.169.254, 0.0.0.0, `::1`, `fd00::/8`; blocks a host if *any* resolved address is private; DNS failure message; extracts title and structured text; redirect to a private address is blocked; safe redirects followed, loops capped; 403/429/404/500 → friendly messages; non-HTML types rejected; oversized pages rejected; JavaScript-only pages suggest Paste; timeouts; plain-text pages accepted |
+| `test_fetch.py` | 17 | **SSRF and extraction**: rejects bad schemes, credentials and non-standard ports; blocks loopback, 10/8, 192.168/16, 172.16/12, 169.254.169.254, 0.0.0.0, `::1`, `fd00::/8`; blocks a host if *any* resolved address is private; DNS failure message; extracts title and structured text; redirect to a private address is blocked; safe redirects followed, loops capped; 403/429/404/500 → friendly messages; non-HTML types rejected; oversized pages rejected; JavaScript-only pages suggest Paste; timeouts; plain-text pages accepted; **job boards** (LinkedIn incl. country subdomains, Indeed, Glassdoor) get a clear "copy the description and Paste" message with no network request, lookalike domains are not blocked, a redirect to a job board is caught, and LinkedIn's non-standard 999 status counts as a bot block |
 | `test_interview.py` | 12 | Kit sections and shape; evidence quotes verified; fabricated evidence dropped and flagged; absent evidence not treated as fabrication; list caps; retry once then fail; empty kit rejected by the schema; progress events; blank to-ask entries stripped; API: stream + cache, refresh bypass, GET 204→200, 404/409/error events |
 | `test_parsing.py` | 5 | TXT normalisation; DOCX extraction; unsupported extension; corrupt PDF; empty file |
 | `test_eval_metrics.py` | 6 | The eval's own scoring helpers (retrieval hit, keyword groups/exclusions, citations, refusal detection, fit checks, rate) |

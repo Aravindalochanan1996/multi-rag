@@ -88,7 +88,7 @@ Repository layout:
 ```
 backend/app/      FastAPI app: routes/, ingest/, chat.py, analysis.py, llm.py, store.py, retrieval.py
 backend/evals/    golden eval set + runner (python -m evals.run)
-backend/tests/    117 unit/API tests
+backend/tests/    126 unit/API tests
 frontend/src/     React UI (components/: UploadPanel, Chat, FitView, Markdown)
 docs/             runbook, functionality, features, testing
 samples/          example resume and job postings
@@ -157,7 +157,7 @@ samples/          example resume and job postings
 - **Input limits:** allowed extensions, 5 MB size cap, per-session isolation by `X-Session-ID`.
 
 ### Quality controls
-- 117 automated tests (86% line coverage) plus a **golden eval set** (16 questions + 3 fit cases) that
+- 126 automated tests (86% line coverage) plus a **golden eval set** (16 questions + 3 fit cases) that
   scores retrieval hit rate, answer accuracy, citation validity, refusal accuracy, injection resistance
   and fit correctness. Latest run: all metrics 1.0. Details and honest caveats in
   [docs/TESTING.md](docs/TESTING.md).

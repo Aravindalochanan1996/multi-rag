@@ -93,7 +93,11 @@ def test_follows_safe_redirect_but_caps_redirect_loops():
         fetch_page("https://jobs.example.com/x", transport=transport(loop), resolver=resolver_for("93.184.216.34"))
 
 
-@pytest.mark.parametrize("status,match", [(403, "blocked"), (429, "blocked"), (404, "404"), (500, "500")])
+@pytest.mark.parametrize("status,match", [
+    (403, "blocks automated access"), (429, "blocks automated access"),
+    (999, "blocks automated access"),  # LinkedIn's non-standard bot-block status
+    (451, "blocks automated access"), (404, "404"), (500, "500"),
+])
 def test_http_errors_become_friendly_messages(status, match):
     with pytest.raises(FetchError, match=match):
         fetch_page("https://jobs.example.com/1", transport=transport(lambda r: httpx.Response(status)),
@@ -136,3 +140,31 @@ def test_plain_text_pages_are_accepted():
 def test_extract_text_returns_title_and_text():
     title, text = extract_text(GOOD_HTML)
     assert title == "Backend Engineer" and "Terraform" in text
+
+
+@pytest.mark.parametrize("url,name", [
+    ("https://www.linkedin.com/jobs/search-results/?currentJobId=1&keywords=java", "LinkedIn"),
+    ("https://linkedin.com/jobs/view/123", "LinkedIn"),
+    ("https://in.linkedin.com/jobs/view/123", "LinkedIn"),
+    ("https://uk.indeed.com/viewjob?jk=abc", "Indeed"),
+    ("https://www.glassdoor.com/job-listing/x", "Glassdoor"),
+])
+def test_known_login_walled_job_boards_get_a_clear_message_without_any_request(url, name):
+    def no_network(request):
+        raise AssertionError("must not fetch")
+
+    with pytest.raises(FetchError, match=f"{name} doesn't allow automated access") as info:
+        fetch_page(url, transport=transport(no_network), resolver=resolver_for("93.184.216.34"))
+    assert "Paste" in str(info.value)
+
+
+def test_lookalike_domains_are_not_treated_as_job_boards():
+    validate_url("https://notlinkedin.com/jobs", resolver_for("93.184.216.34"))
+    validate_url("https://linkedin.com.example.org/jobs", resolver_for("93.184.216.34"))
+
+
+def test_redirect_to_a_job_board_is_also_caught():
+    handler = lambda request: httpx.Response(302, headers={"location": "https://www.linkedin.com/jobs/view/1"})
+    with pytest.raises(FetchError, match="LinkedIn"):
+        fetch_page("https://short.example.com/x", transport=transport(handler),
+                   resolver=resolver_for("93.184.216.34"))

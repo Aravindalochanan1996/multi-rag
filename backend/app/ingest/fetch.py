@@ -25,6 +25,18 @@ ALLOWED_PORTS = {None, 80, 443}
 ALLOWED_TYPES = ("text/html", "application/xhtml+xml", "text/plain")
 USER_AGENT = "CareerIntelligenceBot/1.0 (+job posting import)"
 
+# Job boards that forbid automated access and sit behind a login or JavaScript wall. Fetching them
+# can never work (LinkedIn answers bots with a non-standard "999"), so say so up front, clearly,
+# instead of making a doomed request and showing an unhelpful status code.
+JOB_BOARDS = {
+    "linkedin.com": "LinkedIn",
+    "indeed.com": "Indeed",
+    "glassdoor.com": "Glassdoor",
+}
+# Non-standard or "go away" statuses that mean the site refused us (999 is LinkedIn's).
+BLOCKED_STATUSES = {401, 403, 407, 429, 451, 999}
+PASTE_HINT = "Open the job, copy its description, and use Paste instead."
+
 
 class FetchError(ValueError):
     """Raised with a user-presentable message when a URL cannot be imported."""
@@ -58,6 +70,11 @@ def validate_url(url: str, resolver: Resolver = _default_resolver) -> str:
         raise FetchError("That does not look like a valid link.") from exc
     if port not in ALLOWED_PORTS:
         raise FetchError("Only standard web ports (80/443) are allowed.")
+    host = parts.hostname.lower()
+    for domain, name in JOB_BOARDS.items():
+        if host == domain or host.endswith("." + domain):
+            raise FetchError(f"{name} doesn't allow automated access and requires a login, so it "
+                             f"can't be imported from a link. {PASTE_HINT}")
     try:
         infos = resolver(parts.hostname, port)
     except OSError as exc:
@@ -95,10 +112,11 @@ def fetch_page(url: str, *, transport: httpx.BaseTransport | None = None,
                             raise FetchError("The site redirected without a destination.")
                         current = validate_url(urljoin(current, location), resolver)
                         continue
-                    if response.status_code in (401, 403, 429):
-                        raise FetchError("The site blocked automated access. Paste the job description text instead.")
+                    if response.status_code in BLOCKED_STATUSES:
+                        raise FetchError(f"That site blocks automated access. {PASTE_HINT}")
                     if response.status_code >= 400:
-                        raise FetchError(f"The site returned an error ({response.status_code}).")
+                        raise FetchError(f"The site returned an error ({response.status_code}). "
+                                         "Check the link, or paste the job description instead.")
                     ctype = response.headers.get("content-type", "").split(";")[0].strip().lower()
                     if ctype not in ALLOWED_TYPES:
                         raise FetchError("That link is not a web page (unsupported content type).")
