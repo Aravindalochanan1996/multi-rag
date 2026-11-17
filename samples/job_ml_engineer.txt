@@ -1,0 +1,14 @@
+Machine Learning Engineer - Northwind AI
+
+ABOUT THE ROLE
+We are building LLM-powered products and need an engineer to own our RAG stack.
+
+REQUIREMENTS
+- 4+ years of Python
+- Experience with vector databases and embeddings
+- Experience deploying on Kubernetes
+- Strong SQL skills
+
+NICE TO HAVE
+- Experience with PyTorch
+- Prior work on LLM evaluation

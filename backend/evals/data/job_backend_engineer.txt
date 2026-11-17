@@ -1,0 +1,19 @@
+Senior Backend Engineer - Orbit Payments
+
+ABOUT US
+Orbit Payments builds payment APIs for online marketplaces.
+
+RESPONSIBILITIES
+- Design and ship REST APIs
+- Own services end to end, including on-call
+
+REQUIREMENTS
+- 5+ years of Python
+- Experience with FastAPI or similar REST frameworks
+- Strong PostgreSQL knowledge
+- Experience deploying on AWS
+- Docker
+
+NICE TO HAVE
+- Terraform
+- Mentoring junior engineers

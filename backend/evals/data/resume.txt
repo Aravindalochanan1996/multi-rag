@@ -1,0 +1,21 @@
+Jane Doe
+jane@example.com
+
+SUMMARY
+Backend engineer with 6 years of experience building Python APIs and data pipelines.
+
+EXPERIENCE
+Acme Corp - Senior Software Engineer (2021-2025)
+- Built FastAPI services handling 2M requests/day
+- Designed PostgreSQL schemas and led migrations
+- Deployed services on AWS ECS with Terraform
+- Mentored 4 junior engineers
+
+Beta Inc - Software Engineer (2018-2021)
+- Developed ETL pipelines in Python and Airflow
+
+SKILLS
+Python, FastAPI, PostgreSQL, AWS, Docker, Terraform, Airflow
+
+EDUCATION
+BSc Computer Science, 2018

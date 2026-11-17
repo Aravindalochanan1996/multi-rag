@@ -1,0 +1,13 @@
+Data Analyst - Lumen Retail
+
+ABOUT THE ROLE
+Lumen Retail is looking for an analyst to turn sales data into decisions.
+
+REQUIREMENTS
+- Advanced Excel
+- Tableau dashboards
+- SQL
+- Statistics and A/B testing
+
+NICE TO HAVE
+- R
