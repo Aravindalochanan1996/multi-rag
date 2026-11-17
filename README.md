@@ -5,8 +5,8 @@
 > grounded first draft of *what actually happened*, but the assignment explicitly asks for your own
 > reasoning there. Keep the facts you agree with, replace the voice and add your own judgement.
 
-Upload a resume and several job postings, then ask questions about fit, skill gaps and interview
-preparation. Every answer is grounded in your documents and cites the passages it used.
+Upload a resume and several job postings (as files, pasted text, or a link), then ask questions about
+fit, skill gaps and interview preparation, and generate a tailored **interview prep kit** per job. Every answer is grounded in your documents and cites the passages it used.
 
 <!-- ✍️ Add 2–3 sentences in your own words: why Option 4, who this is for. -->
 
@@ -88,7 +88,7 @@ Repository layout:
 ```
 backend/app/      FastAPI app: routes/, ingest/, chat.py, analysis.py, llm.py, store.py, retrieval.py
 backend/evals/    golden eval set + runner (python -m evals.run)
-backend/tests/    70 unit/API tests
+backend/tests/    117 unit/API tests
 frontend/src/     React UI (components/: UploadPanel, Chat, FitView, Markdown)
 docs/             runbook, functionality, features, testing
 samples/          example resume and job postings
@@ -157,7 +157,7 @@ samples/          example resume and job postings
 - **Input limits:** allowed extensions, 5 MB size cap, per-session isolation by `X-Session-ID`.
 
 ### Quality controls
-- 70 automated tests (84% line coverage) plus a **golden eval set** (16 questions + 3 fit cases) that
+- 117 automated tests (86% line coverage) plus a **golden eval set** (16 questions + 3 fit cases) that
   scores retrieval hit rate, answer accuracy, citation validity, refusal accuracy, injection resistance
   and fit correctness. Latest run: all metrics 1.0. Details and honest caveats in
   [docs/TESTING.md](docs/TESTING.md).
@@ -229,14 +229,14 @@ startup); automated frontend tests; rate limiting; OCR for scanned PDFs; load te
 
 - Hybrid retrieval (Postgres full-text + vector with rank fusion) and a reranker.
 - Background pre-computation of the fit analysis right after a job is uploaded.
-- Resume-improvement suggestions and an interview-prep kit as first-class features (currently only reachable by chatting).
+- Resume-improvement suggestions; verifying (or removing) the AI-written talking points in the interview kit; adding interview prep and URL import to the golden eval.
 - A much larger, more adversarial eval set and an LLM-judge cross-check of the keyword scoring.
 - Frontend tests (Vitest + Playwright), OpenTelemetry, and real migrations.
-- Job-posting URL scraping with a paste fallback (dependency present, feature not built).
+- Fetch URLs through an egress proxy (or pin the validated IP) and support JavaScript-rendered job boards.
 
 ## Known limitations
 
-- **Not built:** URL scraping for job postings; dedicated resume-improvement and interview-prep screens.
+- **Not built:** dedicated resume-improvement suggestions. Many job boards (LinkedIn, Indeed, Workday) block bots or need JavaScript, so URL import can fail there; Paste always works.
 - Scanned (image-only) PDFs are rejected; no OCR.
 - Documents ingested before the "title in embedding" change keep old embeddings — re-upload them.
 - The golden eval is small (16 + 3) and was tuned against its own failures; 100% means "no known

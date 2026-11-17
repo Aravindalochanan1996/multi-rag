@@ -85,7 +85,7 @@ class AnthropicLLM:
         try:
             with self.client.messages.stream(
                 model=self.model,
-                max_tokens=2048,
+                max_tokens=4096,  # interview kits are long structured outputs
                 temperature=0.0 if json_mode else 0.2,
                 system=system + (JSON_INSTRUCTION if json_mode else ""),
                 messages=[{"role": "user", "content": prompt}],

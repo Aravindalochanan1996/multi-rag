@@ -27,8 +27,14 @@ class Chunk:
     text: str
 
 
+def _heading_text(line: str) -> str:
+    """Strip markdown markers so "## Requirements" and "**Requirements**" read as "Requirements"
+    (extracted web pages arrive in that form)."""
+    return re.sub(r"^[#*_\s]+|[*_:\s]+$", "", line).strip()
+
+
 def is_heading(line: str) -> bool:
-    stripped = line.strip().rstrip(":").strip()
+    stripped = _heading_text(line)
     if not stripped or len(stripped) > 40:
         return False
     if stripped.lower() in KNOWN_HEADINGS:
@@ -43,7 +49,7 @@ def split_sections(text: str) -> list[tuple[str, str]]:
     sections: list[tuple[str, list[str]]] = [("header", [])]
     for line in text.split("\n"):
         if is_heading(line):
-            sections.append((line.strip().rstrip(":").strip().lower(), []))
+            sections.append((_heading_text(line).lower(), []))
         else:
             sections[-1][1].append(line)
     result = [(name, "\n".join(lines).strip()) for name, lines in sections]

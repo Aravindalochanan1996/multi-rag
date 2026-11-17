@@ -7,7 +7,7 @@ and manual/live verification. Numbers below were measured on the last run.
 
 ```bash
 cd backend
-pytest -q                                   # 70 tests, ~2 s
+pytest -q                                   # 117 tests, ~2 s
 pytest --cov=app --cov-report=term-missing  # needs: pip install pytest-cov
 ruff check .                                # lint
 ```
@@ -15,27 +15,31 @@ ruff check .                                # lint
 **Design principle:** every external dependency (Ollama, Postgres, LLM APIs) is injected, so the suite runs
 offline with fakes. No test needs a network, a key, or a database.
 
-### Tests by area (70 total)
+### Tests by area (117 total)
 
 | File | Tests | What it proves |
 |---|---|---|
 | `test_chat.py` | 16 | SSE event order; refusal without calling the LLM; margin logic for supporting chunks; balanced resume/job search + de-duplication; prompt-injection tag stripping; LLM/embedding failures become error events; endpoint streams `text/event-stream`; input validation; citation normalisation (`【1】`, `[1†L2]`, `(source 2)`), including markers split across tokens |
 | `test_analysis.py` | 16 | Score arithmetic (weights, partial credit, empty); evidence check accepts real quotes and rejects fabricated ones; unsupported "met" downgraded; retry on bad JSON; failure after two bad outputs; streaming progress events; result caching, refresh bypass, GET 204→200; 404 unknown job, 409 no resume; single-letter requirement "R" regression |
 | `test_llm_providers.py` | 12 | Anthropic: streaming, model/system params, JSON-mode instruction, SDK error mapping, missing key; Groq: OpenAI-style SSE parsing, JSON mode flag, auth header, 401 mapping, missing key, 429 retry then success, give-up after max retries; provider factory; fenced-JSON tolerance |
-| `test_chunking.py` | 6 | Heading detection; section split and naming; chunk indices; oversized sections split on bullets within limit; giant single block hard-split; empty input |
-| `test_documents_api.py` | 8 | Upload success; bad `doc_type`; unsupported file; missing session header; embedding failure → 502; list and delete-missing; clear-session wipes by query-param ID (no header); clear-session validates the ID |
+| `test_chunking.py` | 7 | Heading detection; section split and naming; chunk indices; oversized sections split on bullets within limit; giant single block hard-split; empty input |
+| `test_documents_api.py` | 13 | Upload success; bad `doc_type`; unsupported file; missing session header; embedding failure → 502; list and delete-missing; clear-session wipes by query-param ID (no header); clear-session validates the ID; **URL import**: stores sections and page title, can target a resume, fetch problems → 422, body/session validation, embedding failure → 502 |
+| `test_fetch.py` | 14 | **SSRF and extraction**: rejects bad schemes, credentials and non-standard ports; blocks loopback, 10/8, 192.168/16, 172.16/12, 169.254.169.254, 0.0.0.0, `::1`, `fd00::/8`; blocks a host if *any* resolved address is private; DNS failure message; extracts title and structured text; redirect to a private address is blocked; safe redirects followed, loops capped; 403/429/404/500 → friendly messages; non-HTML types rejected; oversized pages rejected; JavaScript-only pages suggest Paste; timeouts; plain-text pages accepted |
+| `test_interview.py` | 12 | Kit sections and shape; evidence quotes verified; fabricated evidence dropped and flagged; absent evidence not treated as fabrication; list caps; retry once then fail; empty kit rejected by the schema; progress events; blank to-ask entries stripped; API: stream + cache, refresh bypass, GET 204→200, 404/409/error events |
 | `test_parsing.py` | 5 | TXT normalisation; DOCX extraction; unsupported extension; corrupt PDF; empty file |
 | `test_eval_metrics.py` | 6 | The eval's own scoring helpers (retrieval hit, keyword groups/exclusions, citations, refusal detection, fit checks, rate) |
 | `test_health.py` | 1 | `/health` and request-ID header |
 
-### Line coverage (`pytest --cov=app`): **84% overall** (642 statements, 102 missed)
+### Line coverage (`pytest --cov=app`): **86% overall** (867 statements, 124 missed)
 
 | Module | Cover | Why / what is uncovered |
 |---|---|---|
 | `chat.py`, `config.py`, `logging_setup.py`, `routes/chat.py` | 100% | — |
+| `interview.py` | 98% | one defensive branch |
 | `routes/analysis.py` | 96% | provider factory default and one guard branch |
 | `analysis.py` | 96% | rarely reached error paths |
 | `ingest/chunking.py` | 96% | one defensive branch |
+| `ingest/fetch.py` | 92% | the real DNS resolver and a few rarely reached error branches |
 | `routes/documents.py` | 94% | default dependency factories (overridden in tests) |
 | `ingest/parsing.py` | 90% | PDF happy path (needs a real PDF fixture) |
 | `main.py` | 86% | startup schema-init error path |
@@ -135,6 +139,9 @@ Fit scores observed: ML Engineer 40, Backend Engineer 100, Data Analyst 11.
 | Fit tab | live progress counter, result card with 40% and gap matrix |
 | Proxy robustness | long request via Vite proxy and nginx (blocking version failed at ~111 s; streaming succeeded) |
 | Docker | `docker compose up --build`; `/api/health`, chat and fit through nginx |
+| URL import SSRF rules | live API: loopback, localhost, 169.254.169.254, 10.x, `::1`, file://, ftp://, credentials in URL and port 8443 all rejected with 422 |
+| URL import happy path | real fetch + extract + embed + store of three public pages; one imported through the UI (Link → Import job) |
+| Interview kit | live run on the sample resume and ML job: 5/4/4/4 items, every quote verified, 6 s on Groq; UI shows four sections and the copy button |
 | Markdown rendering | DOM: 1 table, 3 rows, no raw `|---`/`**`, chips present |
 | Refresh clears workspace | uploaded a pasted job, confirmed 1 DB row; reloaded; sidebar empty and DB row count 0, `session cleared` logged |
 

@@ -1,6 +1,8 @@
 import logging
 import uuid
 from dataclasses import asdict
+from typing import Literal
+from urllib.parse import urlsplit
 
 from fastapi import (
     APIRouter,
@@ -12,10 +14,12 @@ from fastapi import (
     Query,
     UploadFile,
 )
+from pydantic import BaseModel, Field
 
 from ..config import settings
 from ..embeddings import EmbeddingError, OllamaEmbedder
 from ..ingest.chunking import chunk_text, embedding_text
+from ..ingest.fetch import FetchError, fetch_page
 from ..ingest.parsing import ParseError, parse_document
 from ..store import DocumentStore, PgDocumentStore
 
@@ -29,6 +33,10 @@ def get_store() -> DocumentStore:
 
 def get_embedder() -> OllamaEmbedder:
     return OllamaEmbedder()
+
+
+def get_fetcher():
+    return fetch_page
 
 
 def session_id_header(x_session_id: str = Header(..., min_length=8, max_length=64)) -> str:
@@ -57,8 +65,38 @@ async def upload(
     except ParseError as exc:
         raise HTTPException(422, str(exc)) from exc
 
+    return _ingest(text, _title(text, filename), filename, doc_type, session_id, store, embedder)
+
+
+class UrlImport(BaseModel):
+    url: str = Field(min_length=8, max_length=2000)
+    doc_type: Literal["resume", "job"] = "job"
+
+
+@router.post("/from-url", status_code=201)
+def import_from_url(
+    body: UrlImport,
+    session_id: str = Depends(session_id_header),
+    store: DocumentStore = Depends(get_store),
+    embedder=Depends(get_embedder),
+    fetcher=Depends(get_fetcher),
+) -> dict:
+    """Import a job posting (or online resume) by link. Sync on purpose: the fetch blocks, and
+    FastAPI runs sync endpoints in a worker thread so it does not stall other requests."""
+    try:
+        page = fetcher(body.url)
+    except FetchError as exc:
+        log.info("url import rejected", extra={"extra_fields": {"reason": str(exc)}})
+        raise HTTPException(422, str(exc)) from exc
+    host = urlsplit(page.url).hostname or "web"
+    return _ingest(page.text, page.title[:120], host, body.doc_type, session_id, store, embedder,
+                   source="url")
+
+
+def _ingest(text: str, title: str, filename: str, doc_type: str, session_id: str,
+            store: DocumentStore, embedder, source: str = "file") -> dict:
+    """Chunk, embed and store already-extracted text. Shared by file upload and URL import."""
     chunks = chunk_text(text)
-    title = _title(text, filename)
     try:
         vectors = embedder.embed([embedding_text(title, c) for c in chunks])
     except EmbeddingError as exc:
@@ -67,7 +105,8 @@ async def upload(
 
     record = store.save(session_id, doc_type, filename, title, chunks, vectors)
     log.info("ingested", extra={"extra_fields": {
-        "doc_id": record.id, "doc_type": doc_type, "chunks": len(chunks), "chars": len(text)}})
+        "doc_id": record.id, "doc_type": doc_type, "chunks": len(chunks), "chars": len(text),
+        "source": source}})
     return asdict(record)
 
 

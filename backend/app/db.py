@@ -31,6 +31,13 @@ CREATE TABLE IF NOT EXISTS analyses (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (job_id, resume_id)
 );
+CREATE TABLE IF NOT EXISTS interview_kits (
+    job_id     UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    resume_id  UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    result     JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (job_id, resume_id)
+);
 """
 
 

@@ -30,6 +30,10 @@ class DocumentStore(Protocol):
 
     def save_analysis(self, job_id: str, resume_id: str, result: dict) -> None: ...
 
+    def get_interview(self, job_id: str, resume_id: str) -> dict | None: ...
+
+    def save_interview(self, job_id: str, resume_id: str, result: dict) -> None: ...
+
     def delete(self, session_id: str, doc_id: str) -> bool: ...
 
     def delete_session(self, session_id: str) -> int: ...
@@ -85,17 +89,30 @@ class PgDocumentStore:
         return record, "\n".join(parts)
 
     def get_analysis(self, job_id: str, resume_id: str) -> dict | None:
+        return self._get_result("analyses", job_id, resume_id)
+
+    def save_analysis(self, job_id: str, resume_id: str, result: dict) -> None:
+        self._save_result("analyses", job_id, resume_id, result)
+
+    def get_interview(self, job_id: str, resume_id: str) -> dict | None:
+        return self._get_result("interview_kits", job_id, resume_id)
+
+    def save_interview(self, job_id: str, resume_id: str, result: dict) -> None:
+        self._save_result("interview_kits", job_id, resume_id, result)
+
+    # `table` is always one of our two fixed names, never user input.
+    def _get_result(self, table: str, job_id: str, resume_id: str) -> dict | None:
         with connect() as conn:
             row = conn.execute(
-                "SELECT result FROM analyses WHERE job_id = %s AND resume_id = %s",
+                f"SELECT result FROM {table} WHERE job_id = %s AND resume_id = %s",
                 (job_id, resume_id),
             ).fetchone()
         return row[0] if row else None
 
-    def save_analysis(self, job_id: str, resume_id: str, result: dict) -> None:
+    def _save_result(self, table: str, job_id: str, resume_id: str, result: dict) -> None:
         with connect() as conn:
             conn.execute(
-                "INSERT INTO analyses (job_id, resume_id, result) VALUES (%s, %s, %s) "
+                f"INSERT INTO {table} (job_id, resume_id, result) VALUES (%s, %s, %s) "
                 "ON CONFLICT (job_id, resume_id) DO UPDATE "
                 "SET result = EXCLUDED.result, created_at = now()",
                 (job_id, resume_id, Jsonb(result)),

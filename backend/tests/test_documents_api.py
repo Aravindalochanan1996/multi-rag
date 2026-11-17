@@ -98,3 +98,59 @@ def test_clear_session_validates_id_length():
     c = client()
     assert c.post("/documents/clear?session_id=short").status_code == 422
     assert c.post("/documents/clear").status_code == 422
+
+
+# ---- URL import -------------------------------------------------------------------------
+
+from app.ingest.fetch import FetchedPage, FetchError
+
+JOB_PAGE = FetchedPage(
+    url="https://jobs.example.com/backend",
+    title="Backend Engineer - Acme",
+    text="# Backend Engineer\n\nAcme builds tools.\n\n## Requirements\n\n- Python\n- SQL\n\n## Nice to have\n\n- Terraform",
+)
+
+
+def url_client(store=None, embedder=None, fetcher=None):
+    app.dependency_overrides[documents.get_fetcher] = lambda: fetcher or (lambda url: JOB_PAGE)
+    return client(store, embedder)
+
+
+def test_import_from_url_stores_sections_and_titles_by_page():
+    store = FakeStore()
+    r = url_client(store).post("/documents/from-url", headers=SID,
+                               json={"url": "https://jobs.example.com/backend"})
+    assert r.status_code == 201
+    body = r.json()
+    assert body["doc_type"] == "job" and body["title"] == "Backend Engineer - Acme"
+    assert body["filename"] == "jobs.example.com" and body["chunk_count"] == 3  # header, requirements, nice to have
+    assert store.saved[0][:2] == ("session-12345", "job")
+
+
+def test_import_from_url_can_target_resume():
+    r = url_client().post("/documents/from-url", headers=SID,
+                          json={"url": "https://cv.example.com/jane", "doc_type": "resume"})
+    assert r.status_code == 201 and r.json()["doc_type"] == "resume"
+
+
+def test_import_from_url_reports_fetch_problems_as_422():
+    def blocked(url):
+        raise FetchError("That address is not allowed (it points to a private network).")
+
+    r = url_client(fetcher=blocked).post("/documents/from-url", headers=SID,
+                                         json={"url": "http://169.254.169.254/latest/meta-data"})
+    assert r.status_code == 422 and "private network" in r.json()["detail"]
+
+
+def test_import_from_url_validates_body_and_session():
+    c = url_client()
+    assert c.post("/documents/from-url", headers=SID, json={"url": "x"}).status_code == 422
+    assert c.post("/documents/from-url", headers=SID,
+                  json={"url": "https://a.example.com/x", "doc_type": "cover"}).status_code == 422
+    assert c.post("/documents/from-url", json={"url": "https://a.example.com/x"}).status_code == 422
+
+
+def test_import_from_url_embedding_failure_is_502():
+    r = url_client(embedder=BrokenEmbedder()).post("/documents/from-url", headers=SID,
+                                                   json={"url": "https://jobs.example.com/backend"})
+    assert r.status_code == 502

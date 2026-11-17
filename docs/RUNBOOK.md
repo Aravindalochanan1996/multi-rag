@@ -145,6 +145,10 @@ docker compose exec -T db psql -p 5435 -U app career < backup.sql
 | Answer misses a resume/job fact after an upgrade | Old documents embedded without the title | delete and re-upload them |
 | `port is already allocated` / app opens the wrong service | Another process owns 8000/8080/11434 (IPv4 vs IPv6 can hit different listeners) | change `WEB_PORT`/`API_PORT`; check `netstat -ano \| findstr :PORT`; prefer `127.0.0.1` over `localhost` |
 | Upload rejected 422 | Unsupported type, empty/scanned PDF, corrupt file | use PDF (text-based), DOCX, TXT or MD |
+| URL import: "blocked automated access" | The site rejects bots (401/403/429), e.g. Wikipedia, LinkedIn | use **Paste** (copy the job text) |
+| URL import: "Couldn't read enough text" | JavaScript-rendered or login-only page | use **Paste** |
+| URL import: "address is not allowed" | The link points to a private/internal address (blocked on purpose) | use a public link |
+| Interview kit "returned invalid output twice" | Model produced malformed JSON | click Regenerate; use a larger or hosted model |
 | Upload rejected 413 | File > `MAX_UPLOAD_MB` | raise the limit or shorten the file |
 | API logs `schema init failed` | Postgres not reachable yet / wrong `DATABASE_URL` | `docker compose ps`; check port 5435; API stays up and `/health` still answers |
 | `numpy` DLL blocked (Windows) | Application Control policy | run inside Docker, or use a Python location the policy allows |

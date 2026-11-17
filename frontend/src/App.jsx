@@ -3,8 +3,9 @@ import { listDocuments } from "./api.js";
 import UploadPanel from "./components/UploadPanel.jsx";
 import Chat from "./components/Chat.jsx";
 import FitView from "./components/FitView.jsx";
+import InterviewView from "./components/InterviewView.jsx";
 
-const TABS = [["chat", "Ask questions"], ["fit", "Fit & gaps"]];
+const TABS = [["chat", "Ask questions"], ["fit", "Fit & gaps"], ["interview", "Interview prep"]];
 
 export default function App() {
   const [docs, setDocs] = useState([]);
@@ -46,6 +47,7 @@ export default function App() {
         <div className="min-h-0 flex-1 overflow-hidden">
           <div className={tab === "chat" ? "h-full" : "hidden"}><Chat hasDocs={hasDocs} /></div>
           <div className={tab === "fit" ? "h-full overflow-y-auto" : "hidden"}><FitView docs={docs} /></div>
+          <div className={tab === "interview" ? "h-full overflow-y-auto" : "hidden"}><InterviewView docs={docs} /></div>
         </div>
       </main>
     </div>

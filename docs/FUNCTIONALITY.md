@@ -135,6 +135,26 @@ Body: `{"question": "2–1000 chars", "doc_ids": ["uuid", …]?}`. Response: `te
 | `result` | `{"type":"result","cached":bool,"result":{ "doc_id","title","score","met","partial","missing","requirements":[{"requirement","priority","status","evidence","verified"}] }}` |
 | `error` | `{"type":"error","message":"…"}` |
 
+### `POST /documents/from-url` — import a job posting by link
+Body: `{"url": "https://…", "doc_type": "job" | "resume"}` (default `job`). Fetches, extracts and ingests the page
+(see §10). `201` same payload as upload · `422` with a user-presentable reason (blocked address, bad scheme,
+unreachable, blocked by site, JS-only/too little text, too large, timeout) · `502` embedding unavailable.
+
+### `GET /analysis/interview/{job_id}` — cached interview kit
+`200` kit object, or `204` if none stored (or no resume / unknown job).
+
+### `POST /analysis/interview/{job_id}?refresh=false` — generate (or fetch cached) interview kit
+`404` job not found · `409` no resume uploaded · otherwise `text/event-stream` with the same `progress` / `result` / `error`
+events as fit analysis. `result.result` is:
+
+```json
+{ "doc_id": "…", "title": "…",
+  "technical":  [{"question","why","talking_points":[…],"resume_evidence","evidence_verified"}],
+  "gaps":       [{"question","gap","how_to_answer"}],
+  "behavioral": [{"question","star_hint","resume_evidence","evidence_verified"}],
+  "ask_them":   ["…"] }
+```
+
 Interactive docs: `/docs` (Swagger UI).
 
 ## 7. Data model (Postgres)
@@ -143,7 +163,8 @@ Interactive docs: `/docs` (Swagger UI).
 |---|---|---|
 | `documents` | `id uuid PK`, `session_id`, `doc_type` (`resume`/`job`), `filename`, `title`, `created_at` | index on `session_id` |
 | `chunks` | `id bigserial PK`, `doc_id → documents ON DELETE CASCADE`, `idx`, `section`, `content`, `embedding vector(768)` | index on `doc_id`; exact cosine scan (`<=>`) |
-| `analyses` | `(job_id, resume_id)` PK, both → `documents ON DELETE CASCADE`, `result jsonb`, `created_at` | upsert on re-run |
+| `analyses` | `(job_id, resume_id)` PK, both → `documents ON DELETE CASCADE`, `result jsonb`, `created_at` | fit-analysis cache; upsert on re-run |
+| `interview_kits` | same shape as `analyses` | interview-kit cache; upsert on regenerate |
 
 The schema is created idempotently at API start (`db.init_schema`). Changing `EMBED_DIM` requires recreating `chunks`.
 
@@ -155,11 +176,36 @@ The schema is created idempotently at API start (`db.init_schema`). Changing `EM
   Errors (e.g. model unavailable) show inline. Chat state survives switching tabs.
 - **Fit & gaps tab**: one card per job; "Analyse fit" with live progress; saved results load automatically;
   "Re-run" forces a refresh. Gap matrix sorted missing → partial → met, required before preferred.
+- **Interview prep tab**: per-job "Generate prep kit" with live progress; four colour-coded sections (technical, gap,
+  behavioural/STAR, questions to ask); resume quotes shown as evidence; "Copy as text"; saved kits load automatically.
+- **Sidebar job inputs**: Upload file · **Link** (import a posting by URL) · Paste.
 - Chat input is disabled until at least one resume and one job exist.
 
 ## 9. Security and privacy properties
 
-- Uploaded text is treated as data in prompts; delimiter tags are stripped; instructions inside documents are not followed (tested).
+- **URL import is an SSRF surface and is hardened** (see §10): private/loopback/metadata addresses blocked, redirects re-validated, size and time limits.
+- Uploaded text (including text fetched from a URL) is treated as data in prompts; delimiter tags are stripped; instructions inside documents are not followed (tested).
 - Per-session scoping on every read, write and delete; documents of other sessions are invisible.
 - No credentials in the repo; `.env` ignored by git. Hosted LLM providers receive prompt text (resume + job content); embeddings never leave the machine.
 - Not provided: authentication, authorization beyond the session ID, rate limiting, malware scanning, encryption at rest (see README → productionizing).
+
+## 10. URL import and interview prep internals
+
+**URL import (`ingest/fetch.py`)**
+
+```
+url ─► validate (scheme, credentials, port, DNS → all addresses must be public)
+    ─► GET (10 s timeout, no auto-redirect) ─► redirect? re-validate the new URL (max 3 hops)
+    ─► status/content-type/size checks (HTML or plain text, ≤2 MB)
+    ─► trafilatura → markdown text + title ─► ≥200 chars? else "paste the text instead"
+    ─► shared ingestion: chunk → embed (title prepended) → store
+```
+
+Extracted pages arrive as markdown (`## Requirements`, `- bullets`); the chunker's heading detection strips
+markdown markers, so web pages split into the same sections as uploaded files. File upload and URL import share
+one `_ingest` function.
+
+**Interview prep (`interview.py`)** reuses `analysis.stream_structured` — the one place that streams a JSON-mode LLM
+call, reports progress, validates against a Pydantic model and retries once. Fit analysis and interview prep both use it.
+After validation, `build_kit` caps list sizes and verifies each `resume_evidence` quote against the resume
+(≥70% word overlap), dropping unsupported quotes and flagging `evidence_verified: false`.

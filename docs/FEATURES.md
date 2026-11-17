@@ -19,9 +19,9 @@ Status legend: ✅ built and verified · 🟡 partial · ⛔ not built.
 | 12 | Session isolation | ✅ |
 | 13 | Observability (JSON logs, request IDs, health) | 🟡 |
 | 14 | Golden evaluation suite | ✅ |
-| 15 | Interview preparation | 🟡 (via chat only) |
+| 15 | Interview preparation kit | ✅ |
 | 16 | Resume improvement suggestions | ⛔ |
-| 17 | Job-posting URL import | ⛔ |
+| 17 | Job-posting URL import | ✅ |
 | 18 | Voice / OCR / multi-user auth | ⛔ |
 
 ---
@@ -128,11 +128,42 @@ Status legend: ✅ built and verified · 🟡 partial · ⛔ not built.
 - **Metrics:** retrieval hit rate, answer accuracy, citation validity, refusal accuracy, injection resistance, fit met/missing/score-band correctness, median chat latency.
 - **See:** [TESTING.md](TESTING.md) for results and caveats.
 
-## 15. Interview preparation (partial)
-- **What works today:** ask "Prepare interview questions for the Northwind role" in chat; the answer is grounded in the resume and posting and cites sources.
-- **Not built:** a dedicated screen, STAR-format scaffolding, saved question banks. Listed under "what I'd do next".
+## 15. Interview preparation
+- **What:** an **Interview prep** tab generates a kit per job, tailored to your resume: up to 5 *technical*
+  questions on the role's key requirements (with why it's asked and points to make), 4 *gap* questions for
+  requirements your resume doesn't show (with honest framing: closest real experience plus a learning plan),
+  4 *behavioural* questions with STAR hints that point at a real experience on your resume, and 4
+  *questions to ask the interviewer*. "Copy as text" exports the kit; "Regenerate" refreshes it.
+- **How:** one JSON-mode LLM call over the whole resume and whole job (shares the stream-validate-retry
+  runner with fit analysis), cached per (job, resume) in `interview_kits`.
+- **Trust features:** every `resume_evidence` quote is checked against the resume; unsupported quotes are
+  dropped and the UI says so. Gap answers are coached to be honest, never to claim skills. List sizes are capped in code.
+- **Verified by:** 12 tests (kit shape, evidence verification and fabrication drop, caps, retry/failure,
+  empty-kit rejection, progress events, caching, refresh, 404/409/error events); a live run on the sample data
+  (5 technical, 4 gap, 4 behavioural, 4 to-ask; every quote verified; ~6 s on Groq); and the UI (cards, copy button).
+- **Limits:** the "Suggested points" are AI-written and **not verified** (they can embellish, e.g. add a detail
+  not in the resume), so the UI labels them "only use what is true for you". Not in the golden eval yet.
+  No answer rehearsal/scoring, no saved question banks.
 
-## 16–18. Not built
+## 17. Job-posting URL import
+- **What:** in the sidebar, **Link** next to Paste: enter a public job-posting URL; the page is fetched,
+  the readable text extracted (headings and bullets preserved), then chunked, embedded and stored like any upload.
+  The document is titled from the page.
+- **How:** `ingest/fetch.py` fetches with `httpx`, extracts with `trafilatura` (markdown output, so `## Requirements`
+  becomes a section), and feeds the shared ingestion path used by file upload.
+- **Safety (SSRF defence):** http/https only; no credentials in the URL; ports 80/443 only; the hostname is
+  resolved and rejected if **any** address is private, loopback, link-local (incl. the 169.254.169.254 cloud
+  metadata address), multicast or reserved; redirects are followed manually (max 3) and every hop is re-validated;
+  10 s timeout, 2 MB cap, HTML/plain-text only.
+- **Friendly failures:** blocked sites (401/403/429), JavaScript-only pages (too little text), timeouts,
+  oversized pages and DNS failures each return a clear message, usually suggesting Paste.
+- **Verified by:** 14 fetch tests, several parametrized over many inputs (scheme/credential/port rules, 8 private-IP classes, mixed-address hosts,
+  redirect-to-private blocked, redirect loops, HTTP errors, content types, size cap, JS-only pages, timeout) and
+  5 API tests; live: nine private/invalid URLs blocked, three real public pages imported, one imported through the UI.
+- **Limits:** many job boards (LinkedIn, Indeed, Workday) need JavaScript or a login or block bots — use Paste there.
+  DNS is resolved separately from the connection, so a DNS-rebinding race is theoretical; production should fetch
+  through an egress proxy or pin the validated IP. Not a crawler: one page per import.
+
+## 16, 18. Not built
 - **Resume improvement suggestions:** could reuse the gap matrix (rewrite suggestions for missing/partial items) with a rule that it never invents experience.
-- **Job-posting URL import:** `trafilatura` is already a dependency; needs a fetch + extract endpoint with SSRF protection and a paste fallback for sites that block scrapers.
 - **Voice, OCR, multi-user accounts:** out of scope for this submission.

@@ -53,3 +53,11 @@ def test_single_giant_block_is_hard_split():
 
 def test_empty_text_gives_no_chunks():
     assert chunk_text("") == []
+
+
+def test_markdown_headings_from_extracted_web_pages():
+    page = "# Backend Engineer\n\nAcme builds tools.\n\n## Requirements\n\n- Python\n- SQL\n\n**Nice to have**\n\n- Terraform"
+    names = [n for n, _ in split_sections(page)]
+    assert names == ["header", "requirements", "nice to have"]
+    assert is_heading("## Benefits") and is_heading("**Requirements**:")
+    assert not is_heading("- **Python** experience")  # bullets are content, not headings

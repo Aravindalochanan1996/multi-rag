@@ -112,11 +112,36 @@ def compute_score(reqs: list[CheckedRequirement]) -> int:
     return round(100 * earned / total)
 
 
-def _parse(raw: str) -> LLMOutput:
-    start, end = raw.find("{"), raw.rfind("}")  # tolerate code fences or stray prose
+def parse_json_model(raw: str, model):
+    """Validate model output against a Pydantic model; tolerate code fences or stray prose."""
+    start, end = raw.find("{"), raw.rfind("}")
     if start == -1 or end <= start:
         raise json.JSONDecodeError("no JSON object found", raw, 0)
-    return LLMOutput.model_validate(json.loads(raw[start:end + 1]))
+    return model.model_validate(json.loads(raw[start:end + 1]))
+
+
+def stream_structured(llm, system: str, prompt: str, model) -> Iterator[tuple[str, object]]:
+    """Stream a JSON-mode LLM call and validate it, retrying once on malformed output.
+
+    Yields ("progress", n_chunks) while the model works, then ("output", validated_model).
+    Raises AnalysisError if the model fails twice or the provider errors. Shared by every
+    structured feature (fit analysis, interview prep)."""
+    for attempt in (1, 2):
+        raw, received = [], 0
+        try:
+            for piece in llm.stream(system, prompt, json_mode=True):
+                raw.append(piece)
+                received += 1
+                if received % 5 == 0:
+                    yield "progress", received
+            yield "output", parse_json_model("".join(raw), model)
+            return
+        except (json.JSONDecodeError, ValidationError) as exc:
+            log.warning("invalid structured output", extra={"extra_fields": {
+                "attempt": attempt, "error": str(exc)[:200]}})
+        except LLMError as exc:
+            raise AnalysisError(str(exc)) from exc
+    raise AnalysisError("The model returned invalid output twice. Try again or use a larger model.")
 
 
 def analyse_fit_events(doc_id: str, job_title: str, job_text: str, resume_text: str,
@@ -125,23 +150,13 @@ def analyse_fit_events(doc_id: str, job_title: str, job_text: str, resume_text: 
     prompt = (f"<resume>\n{_clean_tags(resume_text)}\n</resume>\n\n"
               f"<job title=\"{_clean(job_title)}\">\n{_clean_tags(job_text)}\n</job>")
     output: LLMOutput | None = None
-    for attempt in (1, 2):  # one retry on malformed output
-        raw, received = [], 0
-        try:
-            for piece in llm.stream(SYSTEM_PROMPT, prompt, json_mode=True):
-                raw.append(piece)
-                received += 1
-                if received % 5 == 0:
-                    yield "progress", received
-            output = _parse("".join(raw))
-            break
-        except (json.JSONDecodeError, ValidationError) as exc:
-            log.warning("invalid analysis output", extra={"extra_fields": {
-                "attempt": attempt, "error": str(exc)[:200]}})
-        except LLMError as exc:
-            raise AnalysisError(str(exc)) from exc
-    if output is None:
-        raise AnalysisError("The model returned invalid output twice. Try again or use a larger model.")
+    for kind, value in stream_structured(llm, SYSTEM_PROMPT, prompt, LLMOutput):
+        if kind == "progress":
+            yield "progress", value
+        else:
+            output = value  # type: ignore[assignment]
+    if output is None:  # stream_structured raises on failure, so this is purely defensive
+        raise AnalysisError("No result produced")
 
     reqs = check_requirements(output.requirements[:MAX_REQUIREMENTS], resume_text)
     yield "result", FitResult(

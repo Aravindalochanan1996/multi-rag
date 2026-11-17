@@ -38,16 +38,40 @@ export async function uploadDocument(file, docType) {
   return r.json();
 }
 
+export async function importFromUrl(url, docType = "job") {
+  const r = await check(
+    await fetch("/api/documents/from-url", {
+      method: "POST",
+      headers: { ...headers(), "Content-Type": "application/json" },
+      body: JSON.stringify({ url, doc_type: docType }),
+    }),
+  );
+  return r.json();
+}
+
 export async function deleteDocument(id) {
   await check(await fetch(`/api/documents/${id}`, { method: "DELETE", headers: headers() }));
 }
 
-/** Streams fit-analysis events ({type: progress|result|error}) to onEvent. */
+export async function cachedInterview(jobId) {
+  const r = await check(await fetch(`/api/analysis/interview/${jobId}`, { headers: headers() }));
+  return r.status === 204 ? null : r.json();
+}
+
+/** Streams interview-kit events ({type: progress|result|error}) to onEvent. */
+export async function generateInterview(jobId, onEvent, refresh = false) {
+  const r = await check(
+    await fetch(`/api/analysis/interview/${jobId}?refresh=${refresh}`, { method: "POST", headers: headers() }),
+  );
+  await readEvents(r, onEvent);
+}
+
 export async function cachedFit(jobId) {
   const r = await check(await fetch(`/api/analysis/fit/${jobId}`, { headers: headers() }));
   return r.status === 204 ? null : r.json();
 }
 
+/** Streams fit-analysis events ({type: progress|result|error}) to onEvent. */
 export async function analyseFit(jobId, onEvent, refresh = false) {
   const r = await check(
     await fetch(`/api/analysis/fit/${jobId}?refresh=${refresh}`, { method: "POST", headers: headers() }),
