@@ -130,27 +130,27 @@ samples/          example resume and job postings
 
 ## Choices I made (RAG and LLM)
 
-For each one I list what I looked at, what I picked and why. A lot of these came out of using the app and
-fixing what broke, which I note where it applies.
+A note first: I googled the options for most of these, but I asked the LLM to pick, and I went with what it
+suggested. Below I say what I understood of each choice and, where it matters, what I actually decided myself.
 
-**Chunking.** I looked at fixed-size windows and at splitting by structure. I split by headings and kept the
-heading as a label. Resumes and job posts are short and well structured, and the fit score needs to know
-whether something is a "required" or a "nice to have" item. A fixed window would blur that. Pieces over 1,200
+**Chunking.** The LLM suggested splitting by headings (Experience, Requirements and so on) instead of fixed-size
+windows, and I kept it. Resumes and job posts are short and have clear sections, and the fit score needs to know
+whether a line is under "required" or "nice to have". A fixed window would mix those up. Pieces over 1,200
 characters get split on bullet or paragraph breaks.
 
-**Embedding model.** I looked at OpenAI, Voyage and local models. I use `nomic-embed-text` through Ollama.
-Resumes are personal, so I didn't want them sent to a third party just to be embedded, and there are only a few
-dozen chunks, so a small local model is fine. The biggest retrieval problem I hit was that a chunk like
-"Requirements: Python, SQL" doesn't say which company it belongs to. Adding the document title to the text I
-embed took my test set's retrieval hit rate from **33% to 100%**.
+**Embedding model.** I found OpenAI, Voyage and local models. I let the LLM choose, and it picked
+`nomic-embed-text` through Ollama. I'm fine with that: resumes are personal, so I like that nothing is sent to
+a third party just to be embedded, and there are only a few dozen chunks. The biggest retrieval problem we hit
+was that a chunk like "Requirements: Python, SQL" doesn't say which company it belongs to. Adding the document
+title to the text that gets embedded took the test set's retrieval hit rate from **33% to 100%**.
 
-**Vector database.** I looked at Chroma, Qdrant and pgvector, and went with Postgres + pgvector. One database
-holds the vectors, the documents, the cached results and the session separation. It also maps straight onto
-RDS or Cloud SQL later. At this size an exact search is fast, so there's no index to tune.
+**Vector database.** I found Chroma, Qdrant and pgvector. I went with Postgres + pgvector because I already use
+Postgres in my regular work, so I know how to run it and debug it. One database holds the vectors, the documents,
+the cached results and the session separation. At this size an exact search is fast, so there's no index to tune.
 
-**LLM.** I looked at local Ollama, Anthropic and Groq. The provider is a setting (`LLM_PROVIDER`), so it's easy
-to switch. Local is private but a fit analysis took about 1.5 to 3 minutes on my machine. Groq did the same
-job in about 2 seconds. I use Groq's `openai/gpt-oss-120b` day to day and keep Ollama as the private option.
+**LLM.** The provider is a setting (`LLM_PROVIDER`): local Ollama, Groq or Anthropic. Local is private but a fit
+analysis took about 1.5 to 3 minutes on my machine. Groq did the same in about 2 seconds. I use Groq's
+`openai/gpt-oss-120b` day to day. Ollama is still there if I don't want my documents leaving my machine.
 
 **Framework.** I didn't use LangChain or similar. The pipeline is a handful of steps, and I wanted to see and
 test each one (thresholds, prompts, how I balance resume and job results) instead of hiding them.
@@ -178,22 +178,21 @@ regressions", not "proven correct". Details and the history of what broke are in
 **Observability.** JSON logs with a request ID, timings, how many chunks were retrieved and the top score, and a
 `/health` endpoint. I haven't added tracing, metrics or token and cost tracking.
 
-## What I'd point out as decisions or lessons
+## What I found while building it
 
-1. **The document title goes into the embedding.** Small change, biggest improvement: 33% to 100% retrieval on
+1. **The first UI looked old and classic.** I told it what I wanted: a modern look and a light or dark theme.
+   I picked the theme behaviour and the layout from what I saw on screen, not from what it first gave me.
+2. **Answers came back as markdown tables with pipe symbols.** I said that's hard for other people to read, so
+   they are now shown as points and paragraphs.
+3. **LinkedIn import failed.** I tried a LinkedIn URL and got nothing. When we looked into it, LinkedIn needs a
+   login, so it can't be fetched. I decided to leave it that way and show a clear message. Pasting the text of a
+   company career page works.
+4. **The document title goes into the embedding.** Small change, biggest improvement: 33% to 100% retrieval on
    my test set.
-2. **The score is computed in code.** The model decides whether each requirement is met, partial or missing and
-   quotes the proof. The number comes from a fixed formula (required items count double, partial counts half).
-   That makes it explainable and it can't be invented.
-3. **Resume tips are checked, not trusted.** A tool that rewrites your resume is tempting to let make things
-   up. I check each suggestion in code: the original line has to exist, new numbers have to be placeholders
-   like `[X%]`, skills from the job that aren't on the resume get flagged, and so do invented results like
-   "zero downtime". My first version only checked numbers and missed "zero downtime" and "sub-second latency",
-   which I only noticed by reading real output. The checks are heuristics and still can't catch everything.
-4. **Local or hosted LLM is a trade-off, not a rule.** Local keeps documents on my machine but is slow. Hosted
-   is fast but the resume and job text go to that provider. Embeddings stay local either way.
-5. **Slow things stream.** My first fit-analysis endpoint waited for the whole answer and a proxy cut it off
-   around 111 seconds. Streaming progress events fixed that and let the UI show a live counter.
+5. **The score is computed in code.** The model only says met, partial or missing and quotes the proof. The
+   number comes from a fixed formula (required items count double, partial counts half).
+6. **Slow things stream.** The first fit-analysis endpoint waited for the full answer and a proxy cut it off
+   around 111 seconds. Streaming progress fixed it.
 
 ## Engineering standards
 
@@ -207,21 +206,21 @@ startup), frontend tests, rate limiting, OCR for scanned PDFs and load testing.
 
 ## How I used AI tools
 
-I used Claude Code to write most of the code. My part was giving instructions on how the modules, components
-and utilities should be laid out, then reading the code once it was written to find anything that needed
-fixing, and testing it by running the app. I also keep the project rules in `CLAUDE.md` (no LangChain, tests
-and lint must pass, uploaded text is data, answers must cite or refuse).
+I used Claude Code to write most of the code. I told it how the modules, components and utilities should be
+laid out first, then I read what it wrote, ran the app and fixed what was wrong. I keep the project rules in
+`CLAUDE.md` (no LangChain, tests and lint must pass, uploaded text is data, answers must cite or refuse).
 
-It needed checking. Real examples from this project:
-- It got test expectations wrong more than once (the code was right, the test was sloppy).
-- A rule that required requirement names to be at least 2 characters rejected a real one, "R". The evaluation
-  run caught it, not a code review.
-- My first fit-analysis design blocked for minutes and failed behind a proxy.
-- A hosted model name it picked no longer existed. I only found out by listing the models my key could use.
-- The resume-tips checks missed invented results that had no numbers in them (see above).
+I didn't just accept what it gave me. Examples from this project:
+- The first layout was ugly. I gave it ideas and chose the theme.
+- Output as markdown tables wasn't comfortable to read, so I asked for points and paragraphs.
+- I tried the LinkedIn URL myself, saw it fail and asked why.
+- I asked it questions about its choices (the stack, the LLM, the vector database) before agreeing.
+- It got test expectations wrong more than once (the code was right, the test was sloppy), and a rule that
+  required names of 2+ characters rejected a real requirement, "R". The evaluation run caught that.
+- A hosted model name it picked didn't exist. We found out by listing the models my key could use.
 
-I also used AI to help draft this README from my notes and answers, then edited it. The decisions and the
-project's mistakes are real and came from building this.
+This README was drafted by the AI from my answers to its questions and then edited by me. The choices marked
+above as "the LLM picked" are exactly that. I'm saying so openly.
 
 **My do's and don'ts with AI coding tools**
 
@@ -255,7 +254,10 @@ Don't:
 
 ## What I'd do with more time
 
-- **Hybrid search and a reranker.** Combine keyword (Postgres full-text) and vector search, then rerank.
+- **Hybrid search and a reranker.** This is my first pick. I read in ChatGPT and Claude that combining
+  keyword search (Postgres full-text) with vector search, then reranking, gives the best results, so I want to
+  try it and measure it on my evaluation set instead of taking their word for it. Exact skill names like
+  "Terraform" or "R" are where I'd expect it to help.
 - **Auth, a job queue and a real cloud deployment** instead of running everything in the request.
 - **Frontend tests and monitoring:** automated UI tests (Vitest, Playwright), tracing, metrics, and token and cost
   tracking.
