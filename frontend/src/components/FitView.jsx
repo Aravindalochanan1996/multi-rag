@@ -169,8 +169,8 @@ export default function FitView({ docs }) {
               {res ? <ScoreRing score={res.score} /> : loading[job.id] ? <Skeleton className="h-[84px] w-[84px] rounded-full" /> : (
                 <span className="grid h-[84px] w-[84px] shrink-0 place-items-center rounded-full border-2 border-dashed border-border text-muted"><Icon name="target" className="h-6 w-6" /></span>
               )}
-              <div className="min-w-0 flex-1">
-                <h3 className="truncate font-semibold" title={job.title}>{job.title}</h3>
+              <div className="min-w-[11rem] flex-1">
+                <h3 className="line-clamp-2 break-words font-semibold" title={job.title}>{job.title}</h3>
                 {res ? (
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     <Badge tone="ok">{res.met} met</Badge>

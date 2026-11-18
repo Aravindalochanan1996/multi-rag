@@ -4,9 +4,9 @@ You upload your resume and a few job postings. Then you can ask questions about 
 skills you're missing, get likely interview questions, and get suggestions for improving your resume. Every
 answer comes from your own documents and shows where it came from.
 
-I picked the career option because it's a problem I actually run into: comparing a resume against several job
-descriptions and figuring out where you fall short.
-<!-- Add a sentence or two of your own here about why this matters to you personally. -->
+I picked the career option because I'm job hunting myself. Tailoring a resume to every posting, and guessing
+which gaps actually matter, is slow and unclear. I wanted something that shows me how I measure up to a role,
+with the evidence, and tells me what to fix.
 
 **More docs**
 
@@ -19,8 +19,37 @@ descriptions and figuring out where you fall short.
 
 ## Screenshots
 
-<!-- Add screenshots here (sidebar + chat, Fit & gaps, Interview prep, Resume tips, dark mode).
-     A folder like docs/screenshots/ works well. -->
+All of these use a made-up sample resume and sample job postings (they're in the repo), not real documents.
+
+**Ask questions.** A cited answer with a table. Clicking a citation chip shows the exact passage used.
+
+![Chat with a table and a citation panel](docs/screenshots/02-chat-citations.png)
+
+**Fit & skill gaps.** A score per job, a ranking, and every requirement with the resume line that proves it.
+
+![Fit and skill gaps](docs/screenshots/03-fit-and-gaps.png)
+
+**Interview prep.** Likely questions for each job, with the evidence from my resume.
+
+![Interview prep](docs/screenshots/04-interview-prep.png)
+
+**Resume tips.** A before and after rewrite, with a warning when a suggestion mentions something the resume
+doesn't show (here, Kubernetes).
+
+![Resume tips with a warning](docs/screenshots/05-resume-tips.png)
+
+<details>
+<summary>More: first screen, dark mode, phone</summary>
+
+| First screen | Dark mode |
+|---|---|
+| ![Onboarding](docs/screenshots/01-onboarding.png) | ![Dark mode](docs/screenshots/06-dark-mode.png) |
+
+| Phone: fit view | Phone: menu |
+|---|---|
+| <img src="docs/screenshots/07-mobile.png" width="300" alt="Phone fit view"> | <img src="docs/screenshots/08-mobile-menu.png" width="300" alt="Phone menu"> |
+
+</details>
 
 ## What it does
 
@@ -193,7 +222,20 @@ It needed checking. Real examples from this project:
 
 I also used AI to help draft this README from my notes and answers, then edited it. The decisions and the
 project's mistakes are real and came from building this.
-<!-- Add your own do's and don'ts for AI coding tools here: they're graded, and yours matter more than mine. -->
+
+**My do's and don'ts with AI coding tools**
+
+Do:
+- Say how the code should be structured first (which modules, components and utilities), before it writes
+  anything. It's much easier than untangling a layout it invented.
+- Read the code afterwards and look for things to fix.
+- Run and test everything myself, not just trust "it works".
+- Keep the project rules in a file (`CLAUDE.md`) so the results are repeatable across sessions.
+
+Don't:
+- Accept its output blindly. It got test expectations and edge cases wrong in this project.
+- Commit secrets. Keys live in `.env`, which is git-ignored.
+- Skip the tests. Lint and tests have to pass (CI runs them) before anything goes to `main`.
 
 ## Putting it on a cloud (AWS example, GCP and Azure map the same way)
 
