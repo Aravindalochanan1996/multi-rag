@@ -8,46 +8,69 @@ I picked the career option because I'm job hunting myself. Tailoring a resume to
 which gaps actually matter, is slow and unclear. I wanted something that shows me how I measure up to a role,
 with the evidence, and tells me what to fix.
 
-**More docs**
+> [!IMPORTANT]
+> **This app is not hosted anywhere. Run it locally** (see [Quick setup](#quick-setup)). I looked at hosting it
+> (for example the frontend on Vercel) and decided against it, because of these problems:
+> - **Ollama can't run on those platforms.** Embeddings use a local Ollama model, so a hosted version needs a
+>   hosted embedding provider, which is a code change and means re-embedding every document.
+> - **Postgres with pgvector needs a separate hosted database** (Neon, Supabase or RDS). Vercel doesn't host it.
+> - **Streaming and long requests.** Chat and the fit, interview and resume analyses stream over SSE and can take
+>   a while. Serverless functions have time limits and awkward streaming.
+> - **Heavy dependencies.** PDF, DOCX and web-page parsing make a serverless bundle large and slow to start.
+> - **No login.** Sessions are a random per-page ID, so a public URL would let anyone upload documents.
+>
+> The deployment plan for a real cloud is in [Putting it on a cloud](#putting-it-on-a-cloud-aws-example-gcp-and-azure-map-the-same-way).
 
-| Doc | What's in it |
+## Where things are
+
+| What | Where |
 |---|---|
-| [docs/RUNBOOK.md](docs/RUNBOOK.md) | How to run, configure and fix things |
-| [docs/FUNCTIONALITY.md](docs/FUNCTIONALITY.md) | How each part works, the API, the database |
-| [docs/FEATURES.md](docs/FEATURES.md) | Every feature, how I checked it, and its limits |
-| [docs/TESTING.md](docs/TESTING.md) | Tests, coverage numbers and the evaluation set |
+| Runbook (run, configure, fix things) | [docs/RUNBOOK.md](docs/RUNBOOK.md) |
+| Functionality (how each part works, the API, the database) | [docs/FUNCTIONALITY.md](docs/FUNCTIONALITY.md) |
+| Features (every feature, how I checked it, its limits) | [docs/FEATURES.md](docs/FEATURES.md) |
+| Tests, coverage numbers and the evaluation set | [docs/TESTING.md](docs/TESTING.md) |
+| Screenshots (all taken from my local run) | [docs/screenshots/](docs/screenshots/) |
+| Sample resume and job postings | [samples/](samples/) |
+| My build notes and AI usage rules | [notes.md](notes.md) |
 
 ## Screenshots
 
-All of these use a made-up sample resume and sample job postings (they're in the repo), not real documents.
+All of these were taken from the app running on my machine, with a made-up sample resume and sample job
+postings (they're in the repo), not real documents. They follow the steps of using the app.
 
-**Ask questions.** A cited answer with a table. Clicking a citation chip shows the exact passage used.
+**Step 1: Start.** The first screen with an empty workspace. Add the resume first, then job postings.
 
-![Chat with a table and a citation panel](docs/screenshots/02-chat-citations.png)
+![Step 1: first screen](docs/screenshots/01-onboarding.png)
 
-**Fit & skill gaps.** A score per job, a ranking, and every requirement with the resume line that proves it.
+**Step 2: Add documents.** Upload a resume and job postings as files, links or pasted text. Each one shows how
+many sections were indexed. Refreshing the page clears them.
 
-![Fit and skill gaps](docs/screenshots/03-fit-and-gaps.png)
+![Step 2: documents uploaded](docs/screenshots/01b-documents-uploaded.png)
 
-**Interview prep.** Likely questions for each job, with the evidence from my resume.
+**Step 3: Ask questions.** A cited answer with a table. Clicking a citation chip shows the exact passage used.
 
-![Interview prep](docs/screenshots/04-interview-prep.png)
+![Step 3: chat with a table and a citation panel](docs/screenshots/02-chat-citations.png)
 
-**Resume tips.** A before and after rewrite, with a warning when a suggestion mentions something the resume
-doesn't show (here, Kubernetes).
+**Step 4: Fit & skill gaps.** A score per job, a ranking, and every requirement with the resume line that
+proves it.
 
-![Resume tips with a warning](docs/screenshots/05-resume-tips.png)
+![Step 4: fit and skill gaps](docs/screenshots/03-fit-and-gaps.png)
+
+**Step 5: Interview prep.** Likely questions for each job, with the evidence from my resume.
+
+![Step 5: interview prep](docs/screenshots/04-interview-prep.png)
+
+**Step 6: Resume tips.** A before and after rewrite, with a warning when a suggestion mentions something the
+resume doesn't show (here, Kubernetes).
+
+![Step 6: resume tips with a warning](docs/screenshots/05-resume-tips.png)
 
 <details>
-<summary>More: first screen, dark mode, phone</summary>
+<summary>Also: dark mode and phone layout</summary>
 
-| First screen | Dark mode |
-|---|---|
-| ![Onboarding](docs/screenshots/01-onboarding.png) | ![Dark mode](docs/screenshots/06-dark-mode.png) |
-
-| Phone: fit view | Phone: menu |
-|---|---|
-| <img src="docs/screenshots/07-mobile.png" width="300" alt="Phone fit view"> | <img src="docs/screenshots/08-mobile-menu.png" width="300" alt="Phone menu"> |
+| Dark mode | Phone: fit view | Phone: menu |
+|---|---|---|
+| ![Dark mode](docs/screenshots/06-dark-mode.png) | <img src="docs/screenshots/07-mobile.png" width="220" alt="Phone fit view"> | <img src="docs/screenshots/08-mobile-menu.png" width="220" alt="Phone menu"> |
 
 </details>
 
