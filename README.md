@@ -1,12 +1,12 @@
 # Career Intelligence Assistant
 
-You upload your resume and a few job postings. Then you can ask questions about how well you fit, see which
-skills you're missing, get likely interview questions, and get suggestions for improving your resume. Every
-answer comes from your own documents and shows where it came from.
+This is my take on the Career Intelligence Assistant option. You upload your resume and a few job postings, and
+then you can ask how well you fit, which skills you're missing, what interview questions to expect, and what to
+change on your resume. Every answer comes from your own documents and shows where it came from.
 
-I picked the career option because I'm job hunting myself. Tailoring a resume to every posting, and guessing
-which gaps actually matter, is slow and unclear. I wanted something that shows me how I measure up to a role,
-with the evidence, and tells me what to fix.
+I'm job hunting myself, so I built something I'd use. Tailoring a resume to every posting, and guessing which
+gaps really matter, takes time and is unclear. I also wanted to show how I handle the hard parts of a RAG app:
+retrieval, guardrails and checking the quality, not just the chat box.
 
 > [!IMPORTANT]
 > **This app is not hosted anywhere. Run it locally** (see [Quick setup](#quick-setup)). I looked at hosting it
@@ -19,7 +19,7 @@ with the evidence, and tells me what to fix.
 > - **Heavy dependencies.** PDF, DOCX and web-page parsing make a serverless bundle large and slow to start.
 > - **No login.** Sessions are a random per-page ID, so a public URL would let anyone upload documents.
 >
-> The deployment plan for a real cloud is in [Putting it on a cloud](#putting-it-on-a-cloud-aws-example-gcp-and-azure-map-the-same-way).
+> The deployment plan for a real cloud is in [Putting it on a cloud](#putting-it-on-a-cloud-aws).
 
 ## Where things are
 
@@ -259,21 +259,22 @@ Don't:
 - Commit secrets. Keys live in `.env`, which is git-ignored.
 - Skip the tests. Lint and tests have to pass (CI runs them) before anything goes to `main`.
 
-## Putting it on a cloud (AWS example, GCP and Azure map the same way)
+## Putting it on a cloud (AWS)
 
-| Area | Today | In production |
+I'd use AWS because it's the one I know best. GCP and Azure have the same pieces under different names. I'm most
+sure about the compute, database and security rows, so those are the most detailed. The rest is my plan, not
+something I've built.
+
+| Area | Today | On AWS |
 |---|---|---|
-| Compute | Docker Compose | API on ECS Fargate or Cloud Run behind a load balancer; frontend as static files on S3 + CloudFront |
-| Database | One Postgres container | Aurora or RDS Postgres with pgvector, Multi-AZ, backups; add an HNSW index once there are 100k+ chunks |
-| Slow jobs | Run inside the request | Upload to S3, queue with SQS, workers scale on queue depth, the UI polls or streams status |
-| LLM | Local Ollama or a Groq/Anthropic key | Bedrock or a provider with an enterprise data agreement; per-user quotas; a circuit breaker (429 backoff exists already) |
-| Embeddings | Local Ollama | Bedrock Titan or a hosted embedding endpoint |
-| Auth | A random per-page session ID | Cognito or OIDC login, a tenant ID on every table, row-level security |
-| Secrets | `.env` file | Secrets Manager, rotated keys |
-| Monitoring | JSON logs | OpenTelemetry traces and metrics, prompt and cost tracking (Langfuse or similar), alerts on errors, latency and 429s |
-| Security | Basic limits | WAF and rate limiting, virus scanning of uploads, encryption at rest, a retention and deletion policy |
-| Delivery | CI for lint, tests, build | Image scanning, Terraform, blue/green deploys, Alembic migrations, the eval run as a release gate |
-| Scaling | One process | Stateless API that scales horizontally; cache embeddings by content hash |
+| Compute | Docker Compose on my machine | The API as a container on ECS Fargate behind an Application Load Balancer, in private subnets, with at least two tasks that scale on CPU or request count. The React app is built to static files and served from S3 through CloudFront, with `/api` routed to the load balancer. |
+| Database | One Postgres container | RDS or Aurora Postgres with pgvector, Multi-AZ, automated backups and a snapshot before each release. It's only reachable from the API's security group. At 100k+ chunks I'd add an HNSW index. Schema changes would go through Alembic migrations instead of being created on startup. |
+| Auth and security | A random ID per browser tab, no login | Login with Cognito (or any OIDC provider). A user ID on every table and Postgres row-level security, so one user can never read another's documents. WAF and rate limiting in front, virus scanning on uploads, encryption at rest and in transit, and a rule for how long documents are kept and deleted. |
+| Secrets | `.env` file | Secrets Manager, with the keys rotated. |
+| Slow jobs | Run inside the request | Upload to S3, put a message on SQS, and let workers process it. I haven't built this. |
+| LLM and embeddings | Ollama, Groq or Anthropic | Bedrock, or a provider with an enterprise data agreement, since resumes are personal. Embeddings would also move off local Ollama. |
+| Monitoring | JSON logs with a request ID | CloudWatch logs and alarms on errors, latency and 429s, plus tracing and cost tracking per request. |
+| Delivery | CI for lint, tests and build | The same CI, then build and push the image, deploy with Terraform, and run the eval set as a gate before release. |
 
 ## What I'd do with more time
 
