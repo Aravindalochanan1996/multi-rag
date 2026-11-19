@@ -8,6 +8,9 @@ I'm job hunting myself, so I built something I'd use. Tailoring a resume to ever
 gaps really matter, takes time and is unclear. I also wanted to show how I handle the hard parts of a RAG app:
 retrieval, guardrails and checking the quality, not just the chat box.
 
+**Video walkthrough (under 5 minutes):** [Watch on Loom](https://www.loom.com/share/3ba3a1ecbd1a4694b6830d56160403e3).
+My approach, the solution and the key design decisions.
+
 > [!IMPORTANT]
 > **This app is not hosted anywhere. Run it locally** (see [Quick setup](#quick-setup)). I looked at hosting it
 > (for example the frontend on Vercel) and decided against it, because of these problems:
